@@ -59,9 +59,14 @@ class extends Component
 
         $data = $tmdb->search($this->query, $this->page);
 
-        $results = collect($data['results'] ?? [])->filter(function ($item) {
+        $canViewAdult = auth()->check() && auth()->user()->canViewAdultContent();
+
+        $results = collect($data['results'] ?? [])->filter(function ($item) use ($canViewAdult) {
             $mediaType = $item['media_type'] ?? '';
             if (! in_array($mediaType, ['movie', 'tv'])) {
+                return false;
+            }
+            if (! $canViewAdult && ! empty($item['adult'])) {
                 return false;
             }
             if ($this->filter === 'movie') {

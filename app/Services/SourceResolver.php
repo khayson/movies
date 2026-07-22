@@ -34,6 +34,44 @@ class SourceResolver
     }
 
     /**
+     * @return array{embed: array<int, array{type: string, url: string, quality: string, provider: string}>, external: array<int, array{name: string, url: string}>}
+     */
+    public function resolveAdult(int $tmdbId): array
+    {
+        $cacheKey = "sources.adult.{$tmdbId}";
+
+        /** @var array{embed: array<int, array{type: string, url: string, quality: string, provider: string}>, external: array<int, array{name: string, url: string}>} */
+        return Cache::remember($cacheKey, now()->addMinutes(config('sources.cache_ttl')), function () use ($tmdbId): array {
+            /** @var array<int, array{driver: string, name?: string, movie_url?: string, url?: string}> $providers */
+            $providers = config('sources.adult_providers', []);
+            $embed = [];
+            $external = [];
+
+            foreach ($providers as $provider) {
+                if (($provider['driver'] ?? '') === 'embed') {
+                    $template = $provider['movie_url'] ?? '';
+                    if ($template !== '') {
+                        $url = str_replace('{id}', (string) $tmdbId, $template);
+                        $embed[] = [
+                            'type' => 'embed',
+                            'url' => $url,
+                            'quality' => 'auto',
+                            'provider' => $provider['name'] ?? 'Adult Embed',
+                        ];
+                    }
+                } elseif (($provider['driver'] ?? '') === 'external') {
+                    $external[] = [
+                        'name' => $provider['name'] ?? 'External',
+                        'url' => $provider['url'] ?? '',
+                    ];
+                }
+            }
+
+            return ['embed' => $embed, 'external' => $external];
+        });
+    }
+
+    /**
      * @param  array{driver: string, name?: string, movie_url?: string, tv_url?: string}  $provider
      * @return array<int, array{type: string, url: string, quality: string, provider: string}>
      */

@@ -13,6 +13,7 @@ class Tmdb
      */
     public function get(string $endpoint, array $params = []): array
     {
+        $params = $this->applyUserPreferences($params);
         $cacheKey = 'tmdb.'.md5($endpoint.serialize($params));
         $ttl = $this->getTtl($endpoint);
 
@@ -26,6 +27,31 @@ class Tmdb
             /** @var array<string, mixed> */
             return $response->json();
         });
+    }
+
+    /**
+     * @param  array<string, mixed>  $params
+     * @return array<string, mixed>
+     */
+    private function applyUserPreferences(array $params): array
+    {
+        $user = auth()->user();
+
+        if (! $user) {
+            $params['include_adult'] = false;
+
+            return $params;
+        }
+
+        $prefs = $user->preferences ?? [];
+
+        if (! isset($params['language']) && ! empty($prefs['content_language'])) {
+            $params['language'] = $prefs['content_language'];
+        }
+
+        $params['include_adult'] = $user->canViewAdultContent();
+
+        return $params;
     }
 
     /**

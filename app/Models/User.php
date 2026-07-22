@@ -26,10 +26,12 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
  * @property string|null $remember_token
+ * @property array<string, mixed>|null $preferences
+ * @property Carbon|null $date_of_birth
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password'])]
+#[Fillable(['name', 'email', 'password', 'preferences', 'date_of_birth'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -46,6 +48,8 @@ class User extends Authenticatable implements PasskeyUser
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'preferences' => 'array',
+            'date_of_birth' => 'date',
         ];
     }
 
@@ -68,9 +72,32 @@ class User extends Authenticatable implements PasskeyUser
         return $this->hasMany(WatchHistory::class)->latest('updated_at');
     }
 
+    /**
+     * @return HasMany<Watchlist, $this>
+     */
+    public function watchlist(): HasMany
+    {
+        return $this->hasMany(Watchlist::class);
+    }
+
     public function hasFavorited(int $tmdbId, string $mediaType): bool
     {
         return $this->favorites()->where('tmdb_id', $tmdbId)->where('media_type', $mediaType)->exists();
+    }
+
+    public function hasOnWatchlist(int $tmdbId, string $mediaType): bool
+    {
+        return $this->watchlist()->where('tmdb_id', $tmdbId)->where('media_type', $mediaType)->exists();
+    }
+
+    public function isAdult(): bool
+    {
+        return $this->date_of_birth && $this->date_of_birth->age >= 18;
+    }
+
+    public function canViewAdultContent(): bool
+    {
+        return $this->isAdult() && ($this->preferences['show_adult_content'] ?? false);
     }
 
     public function initials(): string

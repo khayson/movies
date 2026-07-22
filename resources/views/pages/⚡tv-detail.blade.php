@@ -44,10 +44,36 @@ class extends Component
         }
     }
 
+    public function toggleWatchlist(string $title, ?string $posterPath, ?string $overview, ?string $releaseDate, float $voteAverage): void
+    {
+        $user = auth()->user();
+        if (! $user) {
+            $this->redirect(route('login'));
+
+            return;
+        }
+
+        $existing = $user->watchlist()->where('tmdb_id', $this->tmdbId)->where('media_type', 'tv')->first();
+        if ($existing) {
+            $existing->delete();
+        } else {
+            $user->watchlist()->create([
+                'tmdb_id' => $this->tmdbId,
+                'media_type' => 'tv',
+                'title' => $title,
+                'poster_path' => $posterPath,
+                'overview' => $overview,
+                'release_date' => $releaseDate,
+                'vote_average' => $voteAverage,
+            ]);
+        }
+    }
+
     public function with(Tmdb $tmdb): array
     {
         $show = $tmdb->details('tv', $this->tmdbId);
         $isFavorited = auth()->check() && auth()->user()->hasFavorited($this->tmdbId, 'tv');
+        $isOnWatchlist = auth()->check() && auth()->user()->hasOnWatchlist($this->tmdbId, 'tv');
         $firstAirDate = $show['first_air_date'] ?? '';
         $isUpcoming = $firstAirDate && $firstAirDate > now()->toDateString();
 
@@ -67,6 +93,7 @@ class extends Component
         return [
             'show' => $show,
             'isFavorited' => $isFavorited,
+            'isOnWatchlist' => $isOnWatchlist,
             'isUpcoming' => $isUpcoming,
             'cast' => array_slice($show['credits']['cast'] ?? [], 0, 12),
             'seasons' => $seasons,
@@ -164,7 +191,14 @@ class extends Component
                         class="inline-flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition {{ $isFavorited ? 'border-amber-600 bg-amber-600/10 text-amber-400' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500' }}"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="{{ $isFavorited ? 'currentColor' : 'none' }}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                        {{ $isFavorited ? 'Favorited' : 'Add to Favorites' }}
+                        {{ $isFavorited ? 'Favorited' : 'Favorite' }}
+                    </button>
+                    <button
+                        wire:click="toggleWatchlist('{{ addslashes($title) }}', '{{ $show['poster_path'] ?? '' }}', '{{ addslashes(Str::limit($show['overview'] ?? '', 300)) }}', '{{ $show['first_air_date'] ?? '' }}', {{ $show['vote_average'] ?? 0 }})"
+                        class="inline-flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition {{ $isOnWatchlist ? 'border-purple-600 bg-purple-600/10 text-purple-400' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500' }}"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $isOnWatchlist ? 'M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' : 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' }}" /></svg>
+                        {{ $isOnWatchlist ? 'On Watchlist' : 'Watchlist' }}
                     </button>
                 </div>
             </div>

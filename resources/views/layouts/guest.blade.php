@@ -36,6 +36,13 @@
                                 {{ $nav['label'] }}
                             </a>
                         @endforeach
+                        @if(auth()->user()?->canViewAdultContent())
+                            <a href="{{ route('adult.browse') }}"
+                               class="rounded-lg px-3 py-2 text-sm font-medium text-red-400/80 transition hover:bg-zinc-800 hover:text-red-400 {{ request()->routeIs('adult.*') ? '!text-red-400 bg-zinc-800' : '' }}"
+                               wire:navigate>
+                                18+
+                            </a>
+                        @endif
                     </div>
                 </div>
 
@@ -79,6 +86,13 @@
                         {{ $nav['label'] }}
                     </a>
                 @endforeach
+                @if(auth()->user()?->canViewAdultContent())
+                    <a href="{{ route('adult.browse') }}"
+                       class="whitespace-nowrap px-3 py-2.5 text-sm font-medium text-red-400/80 transition hover:text-red-400 {{ request()->routeIs('adult.*') ? '!text-red-400' : '' }}"
+                       wire:navigate>
+                        18+
+                    </a>
+                @endif
             </div>
         </nav>
 

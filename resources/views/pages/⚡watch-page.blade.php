@@ -28,6 +28,32 @@ class extends Component
 
         if (auth()->check()) {
             $this->recordWatchHistory();
+            $this->applyDefaultSource();
+        }
+    }
+
+    private function applyDefaultSource(): void
+    {
+        $prefs = auth()->user()->preferences ?? [];
+        $defaultSource = $prefs['default_source'] ?? '';
+
+        if ($defaultSource === '') {
+            return;
+        }
+
+        $resolver = app(SourceResolver::class);
+        $sources = $resolver->resolve(
+            $this->tmdbId,
+            $this->type,
+            $this->type === 'tv' ? $this->season : null,
+            $this->type === 'tv' ? $this->episode : null,
+        );
+
+        foreach ($sources as $i => $source) {
+            if (($source['provider'] ?? '') === $defaultSource) {
+                $this->activeServer = $i;
+                break;
+            }
         }
     }
 

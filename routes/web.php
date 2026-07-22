@@ -23,4 +23,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
 });
 
+Route::middleware(['auth', 'verified', 'adult.verified'])->group(function () {
+    Route::livewire('/adult', 'pages::adult-browse')->name('adult.browse');
+});
+
 require __DIR__.'/settings.php';
