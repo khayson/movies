@@ -6,10 +6,14 @@ use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\Computed;
+use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Profile settings')] class extends Component {
+new
+#[Layout('layouts.guest')]
+#[Title('Profile settings')]
+class extends Component {
     use ProfileValidationRules;
 
     public string $name = '';
@@ -77,9 +81,8 @@ new #[Title('Profile settings')] class extends Component {
 }; ?>
 
 <section class="w-full">
+    <div class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
     @include('partials.settings-heading')
-
-    <flux:heading class="sr-only">{{ __('Profile settings') }}</flux:heading>
 
     <x-pages::settings.layout :heading="__('Profile')" :subheading="__('Update your name and email address')">
         <form wire:submit="updateProfileInformation" class="my-6 w-full space-y-6">
@@ -121,4 +124,5 @@ new #[Title('Profile settings')] class extends Component {
             <livewire:pages::settings.delete-user-form />
         @endif
     </x-pages::settings.layout>
+    </div>
 </section>

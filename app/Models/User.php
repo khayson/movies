@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -51,6 +52,27 @@ class User extends Authenticatable implements PasskeyUser
     /**
      * Get the user's initials
      */
+    /**
+     * @return HasMany<Favorite, $this>
+     */
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(Favorite::class);
+    }
+
+    /**
+     * @return HasMany<WatchHistory, $this>
+     */
+    public function watchHistory(): HasMany
+    {
+        return $this->hasMany(WatchHistory::class)->latest('updated_at');
+    }
+
+    public function hasFavorited(int $tmdbId, string $mediaType): bool
+    {
+        return $this->favorites()->where('tmdb_id', $tmdbId)->where('media_type', $mediaType)->exists();
+    }
+
     public function initials(): string
     {
         $initials = Str::initials($this->name, true);

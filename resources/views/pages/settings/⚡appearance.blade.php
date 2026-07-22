@@ -1,16 +1,19 @@
 <?php
 
-use Livewire\Component;
+use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
+use Livewire\Component;
 
-new #[Title('Appearance settings')] class extends Component {
+new
+#[Layout('layouts.guest')]
+#[Title('Appearance settings')]
+class extends Component {
     //
 }; ?>
 
 <section class="w-full">
+    <div class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
     @include('partials.settings-heading')
-
-    <flux:heading class="sr-only">{{ __('Appearance settings') }}</flux:heading>
 
     <x-pages::settings.layout :heading="__('Appearance')" :subheading="__('Update the appearance settings for your account')">
         <flux:radio.group x-data variant="segmented" x-model="$flux.appearance">
@@ -19,4 +22,5 @@ new #[Title('Appearance settings')] class extends Component {
             <flux:radio value="system" icon="computer-desktop">{{ __('System') }}</flux:radio>
         </flux:radio.group>
     </x-pages::settings.layout>
+    </div>
 </section>
