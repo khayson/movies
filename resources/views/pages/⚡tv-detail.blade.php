@@ -2,6 +2,7 @@
 
 use App\Models\EpisodeWatch;
 use App\Models\Review;
+use App\Services\StreamingAvailability;
 use App\Services\Tmdb;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
@@ -188,7 +189,7 @@ class extends Component
         }
     }
 
-    public function with(Tmdb $tmdb): array
+    public function with(Tmdb $tmdb, StreamingAvailability $streaming): array
     {
         $show = $tmdb->details('tv', $this->tmdbId);
         $isFavorited = auth()->check() && auth()->user()->hasFavorited($this->tmdbId, 'tv');
@@ -228,6 +229,10 @@ class extends Component
                 ->toArray()
             : [];
 
+        $streamingCountry = $streaming->getUserCountry();
+        $streamingData = $streaming->getByTmdbId('tv', $this->tmdbId, $streamingCountry);
+        $streamingOptions = $streamingData ? $streaming->getStreamingOptions($streamingData, $streamingCountry) : [];
+
         return [
             'show' => $show,
             'isFavorited' => $isFavorited,
@@ -243,6 +248,7 @@ class extends Component
             'averageUserRating' => $reviews->count() > 0 ? round($reviews->avg('rating'), 1) : null,
             'userCollections' => $userCollections,
             'watchedEpisodes' => $watchedEpisodes,
+            'streamingOptions' => $streamingOptions,
         ];
     }
 };
@@ -251,22 +257,24 @@ class extends Component
 <div>
     @php $title = $show['name'] ?? 'Untitled'; @endphp
 
-    <div class="relative h-[50vh] min-h-[400px] w-full overflow-hidden">
+    {{-- Cinematic Backdrop --}}
+    <div class="relative h-[55vh] min-h-[420px] w-full overflow-hidden">
         @if(!empty($show['backdrop_path']))
             <img src="{{ app(Tmdb::class)->backdropUrl($show['backdrop_path']) }}" alt="{{ $title }}" class="absolute inset-0 h-full w-full object-cover">
         @endif
-        <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/70 to-zinc-950/30"></div>
+        <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/60 to-transparent"></div>
+        <div class="absolute inset-0 bg-gradient-to-r from-zinc-950/80 via-transparent to-transparent"></div>
     </div>
 
-    <div class="mx-auto -mt-48 max-w-7xl px-4 sm:px-6 lg:px-8">
+    <div class="mx-auto -mt-56 max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="relative flex flex-col gap-8 md:flex-row">
             <div class="w-48 shrink-0 md:w-64">
-                <div class="relative aspect-[2/3] overflow-hidden rounded-xl bg-zinc-800 shadow-2xl">
+                <div class="relative aspect-[2/3] overflow-hidden rounded-2xl bg-zinc-800 shadow-2xl ring-1 ring-white/[0.08]">
                     @if(!empty($show['poster_path']))
                         <img src="{{ app(Tmdb::class)->imageUrl($show['poster_path']) }}" alt="{{ $title }}" class="h-full w-full object-cover">
                     @endif
                     @if($isUpcoming)
-                        <div class="absolute left-3 top-3 rounded-md bg-amber-600 px-2.5 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-lg">
+                        <div class="absolute left-3 top-3 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-white shadow-lg shadow-amber-600/30">
                             Coming Soon
                         </div>
                     @endif
@@ -274,31 +282,33 @@ class extends Component
             </div>
 
             <div class="flex-1 pt-4">
-                <h1 class="mb-2 text-3xl font-bold md:text-4xl">{{ $title }}</h1>
+                <h1 class="mb-3 text-3xl font-bold tracking-tight md:text-4xl lg:text-5xl">{{ $title }}</h1>
 
-                <div class="mb-4 flex flex-wrap items-center gap-3 text-sm text-zinc-400">
+                <div class="mb-4 flex flex-wrap items-center gap-2 text-sm">
                     @if(!empty($show['first_air_date']))
-                        <span>{{ $isUpcoming ? \Carbon\Carbon::parse($show['first_air_date'])->format('M d, Y') : Str::substr($show['first_air_date'], 0, 4) }}</span>
+                        <span class="text-zinc-400">{{ $isUpcoming ? \Carbon\Carbon::parse($show['first_air_date'])->format('M d, Y') : Str::substr($show['first_air_date'], 0, 4) }}</span>
+                        <span class="text-zinc-700">&bull;</span>
                     @endif
                     @if(!empty($show['number_of_seasons']))
-                        <span>{{ $show['number_of_seasons'] }} {{ Str::plural('Season', $show['number_of_seasons']) }}</span>
+                        <span class="text-zinc-400">{{ $show['number_of_seasons'] }} {{ Str::plural('Season', $show['number_of_seasons']) }}</span>
+                        <span class="text-zinc-700">&bull;</span>
                     @endif
                     @if(!empty($show['vote_average']))
-                        <span class="flex items-center gap-1 text-amber-400">
+                        <span class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1 text-sm font-semibold text-amber-400">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                             {{ number_format($show['vote_average'], 1) }}
                         </span>
                     @endif
                     @if(!empty($show['status']))
-                        <span class="rounded bg-zinc-800 px-2 py-0.5 text-xs font-medium">{{ $show['status'] }}</span>
+                        <span class="rounded-lg bg-white/[0.06] px-2.5 py-1 text-xs font-medium text-zinc-400">{{ $show['status'] }}</span>
                     @endif
                 </div>
 
                 @if(!empty($show['genres']))
-                    <div class="mb-4 flex flex-wrap gap-2">
+                    <div class="mb-5 flex flex-wrap gap-2">
                         @foreach($show['genres'] as $genre)
                             <a href="{{ route('genres.browse', ['type' => 'tv', 'genreId' => $genre['id'], 'genreName' => Str::slug($genre['name'])]) }}"
-                               class="rounded-full bg-zinc-800 px-3 py-1 text-xs font-medium text-zinc-300 transition hover:bg-zinc-700 hover:text-white" wire:navigate>
+                               class="rounded-full border border-white/[0.08] bg-white/[0.04] px-3.5 py-1 text-xs font-medium text-zinc-300 transition hover:border-white/[0.15] hover:bg-white/[0.08] hover:text-white" wire:navigate>
                                 {{ $genre['name'] }}
                             </a>
                         @endforeach
@@ -306,39 +316,39 @@ class extends Component
                 @endif
 
                 @if(!empty($show['overview']))
-                    <p class="mb-6 max-w-2xl leading-relaxed text-zinc-300">{{ $show['overview'] }}</p>
+                    <p class="mb-6 max-w-2xl text-[15px] leading-relaxed text-zinc-300/90">{{ $show['overview'] }}</p>
                 @endif
 
-                <div class="flex flex-wrap items-center gap-3">
+                <div class="flex flex-wrap items-center gap-2.5">
                     @if($isUpcoming)
                         @if($trailer)
                             <a href="{{ route('watch', ['type' => 'tv', 'tmdbId' => $this->tmdbId]) }}"
-                               class="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-600/20 transition hover:bg-amber-500">
+                               class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-600/25 transition hover:from-amber-500 hover:to-amber-600 hover:shadow-amber-500/30">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                 Watch Trailer
                             </a>
                         @endif
-                        <div class="inline-flex items-center gap-2 rounded-lg border border-amber-600/40 bg-amber-600/10 px-4 py-3 text-sm font-medium text-amber-400">
+                        <div class="inline-flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/[0.07] px-4 py-3 text-sm font-medium text-amber-400">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg>
                             Premieres {{ \Carbon\Carbon::parse($show['first_air_date'])->diffForHumans() }}
                         </div>
                     @else
                         <a href="{{ route('watch', ['type' => 'tv', 'tmdbId' => $this->tmdbId, 'season' => 1, 'episode' => 1]) }}"
-                           class="inline-flex items-center gap-2 rounded-lg bg-amber-600 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-600/20 transition hover:bg-amber-500">
+                           class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-600/25 transition hover:from-amber-500 hover:to-amber-600 hover:shadow-amber-500/30">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                             Watch S1 E1
                         </a>
                     @endif
                     <button
                         wire:click="toggleFavorite('{{ addslashes($title) }}', '{{ $show['poster_path'] ?? '' }}')"
-                        class="inline-flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition {{ $isFavorited ? 'border-amber-600 bg-amber-600/10 text-amber-400' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500' }}"
+                        class="inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition {{ $isFavorited ? 'border-amber-500/30 bg-amber-500/10 text-amber-400' : 'border-white/[0.1] bg-white/[0.03] text-zinc-300 hover:border-white/[0.2] hover:bg-white/[0.06]' }}"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="{{ $isFavorited ? 'currentColor' : 'none' }}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
                         {{ $isFavorited ? 'Favorited' : 'Favorite' }}
                     </button>
                     <button
                         wire:click="toggleWatchlist('{{ addslashes($title) }}', '{{ $show['poster_path'] ?? '' }}', '{{ addslashes(Str::limit($show['overview'] ?? '', 300)) }}', '{{ $show['first_air_date'] ?? '' }}', {{ $show['vote_average'] ?? 0 }})"
-                        class="inline-flex items-center gap-2 rounded-lg border px-4 py-3 text-sm font-medium transition {{ $isOnWatchlist ? 'border-purple-600 bg-purple-600/10 text-purple-400' : 'border-zinc-700 text-zinc-400 hover:border-zinc-500' }}"
+                        class="inline-flex items-center gap-2 rounded-xl border px-4 py-3 text-sm font-medium transition {{ $isOnWatchlist ? 'border-purple-500/30 bg-purple-500/10 text-purple-400' : 'border-white/[0.1] bg-white/[0.03] text-zinc-300 hover:border-white/[0.2] hover:bg-white/[0.06]' }}"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $isOnWatchlist ? 'M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' : 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' }}" /></svg>
                         {{ $isOnWatchlist ? 'On Watchlist' : 'Watchlist' }}
@@ -351,8 +361,11 @@ class extends Component
         {{-- Trailer for upcoming --}}
         @if($isUpcoming && $trailer)
             <section class="mt-12">
-                <h2 class="mb-4 text-xl font-bold">Official Trailer</h2>
-                <div class="aspect-video w-full max-w-3xl overflow-hidden rounded-xl bg-zinc-900">
+                <h2 class="mb-4 flex items-center gap-2 text-xl font-bold">
+                    <span class="h-5 w-1 rounded-full bg-amber-500"></span>
+                    Official Trailer
+                </h2>
+                <div class="aspect-video w-full max-w-3xl overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-white/[0.06]">
                     <iframe
                         src="https://www.youtube.com/embed/{{ $trailer['key'] }}"
                         class="h-full w-full"
@@ -364,16 +377,19 @@ class extends Component
             </section>
         @endif
 
-        {{-- Seasons & Episodes (only for released shows) --}}
+        {{-- Seasons & Episodes --}}
         @if(!$isUpcoming && count($seasons) > 0)
             <section class="mt-12">
-                <h2 class="mb-4 text-xl font-bold">Episodes</h2>
+                <h2 class="mb-5 flex items-center gap-2 text-xl font-bold">
+                    <span class="h-5 w-1 rounded-full bg-blue-500"></span>
+                    Episodes
+                </h2>
                 <div class="scrollbar-hide mb-4 flex gap-2 overflow-x-auto pb-1">
                     @foreach($seasons as $season)
                         @if(($season['season_number'] ?? 0) > 0)
                             <button
                                 wire:click="selectSeason({{ $season['season_number'] }})"
-                                class="whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition {{ $selectedSeason === $season['season_number'] ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700' }}"
+                                class="whitespace-nowrap rounded-xl px-4 py-2 text-sm font-medium transition {{ $selectedSeason === $season['season_number'] ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'bg-white/[0.05] text-zinc-400 hover:bg-white/[0.1] hover:text-white' }}"
                             >
                                 Season {{ $season['season_number'] }}
                             </button>
@@ -387,51 +403,61 @@ class extends Component
                             $seasonEpCount = count($seasonData['episodes']);
                             $watchedInSeason = collect($watchedEpisodes)->filter(fn ($key) => str_starts_with($key, $selectedSeason.'-'))->count();
                         @endphp
-                        <div class="mb-3 flex items-center justify-between">
-                            <span class="text-sm text-zinc-500">{{ $watchedInSeason }}/{{ $seasonEpCount }} watched</span>
+                        <div class="mb-4 flex items-center justify-between rounded-xl bg-white/[0.03] px-4 py-3">
+                            <div class="flex items-center gap-3">
+                                <div class="h-1.5 w-24 overflow-hidden rounded-full bg-zinc-800">
+                                    <div class="h-full rounded-full bg-green-500 transition-all duration-500" style="width: {{ $seasonEpCount > 0 ? ($watchedInSeason / $seasonEpCount) * 100 : 0 }}%"></div>
+                                </div>
+                                <span class="text-sm text-zinc-400">{{ $watchedInSeason }}/{{ $seasonEpCount }} watched</span>
+                            </div>
                             @if($watchedInSeason < $seasonEpCount)
                                 <button wire:click="markSeasonWatched({{ $selectedSeason }}, {{ $seasonEpCount }})"
-                                        class="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-700">
-                                    Mark Season Watched
+                                        class="rounded-lg bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-white/[0.1] hover:text-white">
+                                    Mark All Watched
                                 </button>
                             @endif
                         </div>
                     @endauth
-                    <div class="space-y-3">
+                    <div class="space-y-2">
                         @foreach($seasonData['episodes'] as $ep)
                             @php $isWatched = in_array($selectedSeason.'-'.$ep['episode_number'], $watchedEpisodes); @endphp
-                            <div class="flex gap-4 rounded-lg bg-zinc-900 p-4 transition hover:bg-zinc-800 {{ $isWatched ? 'opacity-70' : '' }}">
+                            <div class="group flex gap-4 rounded-xl border border-white/[0.04] bg-white/[0.02] p-3 transition hover:border-white/[0.08] hover:bg-white/[0.04] {{ $isWatched ? 'opacity-60' : '' }}">
                                 <div class="w-40 shrink-0 overflow-hidden rounded-lg bg-zinc-800">
-                                    <a href="{{ route('watch', ['type' => 'tv', 'tmdbId' => $this->tmdbId, 'season' => $selectedSeason, 'episode' => $ep['episode_number']]) }}">
+                                    <a href="{{ route('watch', ['type' => 'tv', 'tmdbId' => $this->tmdbId, 'season' => $selectedSeason, 'episode' => $ep['episode_number']]) }}" class="relative block">
                                         @if(!empty($ep['still_path']))
-                                            <img src="{{ app(Tmdb::class)->imageUrl($ep['still_path'], 'w300') }}" alt="" class="aspect-video w-full object-cover" loading="lazy">
+                                            <img src="{{ app(Tmdb::class)->imageUrl($ep['still_path'], 'w300') }}" alt="" class="aspect-video w-full object-cover transition duration-300 group-hover:scale-105" loading="lazy">
                                         @else
                                             <div class="flex aspect-video items-center justify-center text-zinc-600">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="size-8" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                             </div>
                                         @endif
+                                        <div class="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition group-hover:opacity-100">
+                                            <div class="flex size-8 items-center justify-center rounded-full bg-amber-600/90 text-white">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5 translate-x-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                            </div>
+                                        </div>
                                     </a>
                                 </div>
                                 <div class="flex-1">
                                     <div class="flex items-start justify-between">
                                         <a href="{{ route('watch', ['type' => 'tv', 'tmdbId' => $this->tmdbId, 'season' => $selectedSeason, 'episode' => $ep['episode_number']]) }}" class="flex-1">
-                                            <h3 class="font-medium text-zinc-200">
+                                            <h3 class="font-medium text-zinc-200 transition group-hover:text-white">
                                                 E{{ $ep['episode_number'] }}. {{ $ep['name'] ?? 'Episode '.$ep['episode_number'] }}
                                             </h3>
                                             @if(!empty($ep['runtime']))
-                                                <p class="text-xs text-zinc-500">{{ $ep['runtime'] }} min</p>
+                                                <p class="mt-0.5 text-xs text-zinc-500">{{ $ep['runtime'] }} min</p>
                                             @endif
                                         </a>
                                         @auth
                                             <button wire:click="toggleEpisodeWatched({{ $selectedSeason }}, {{ $ep['episode_number'] }})"
-                                                    class="ml-2 shrink-0 rounded-full p-1.5 transition {{ $isWatched ? 'bg-green-600/20 text-green-400 hover:bg-red-600/20 hover:text-red-400' : 'bg-zinc-800 text-zinc-500 hover:bg-green-600/20 hover:text-green-400' }}"
+                                                    class="ml-2 shrink-0 rounded-full p-1.5 transition {{ $isWatched ? 'bg-green-500/15 text-green-400 hover:bg-red-500/15 hover:text-red-400' : 'bg-white/[0.04] text-zinc-500 hover:bg-green-500/15 hover:text-green-400' }}"
                                                     title="{{ $isWatched ? 'Mark unwatched' : 'Mark watched' }}">
                                                 <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $isWatched ? 'M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' : 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' }}" /></svg>
                                             </button>
                                         @endauth
                                     </div>
                                     @if(!empty($ep['overview']))
-                                        <p class="mt-1 text-sm leading-relaxed text-zinc-400">{{ Str::limit($ep['overview'], 150) }}</p>
+                                        <p class="mt-1.5 text-sm leading-relaxed text-zinc-400">{{ Str::limit($ep['overview'], 150) }}</p>
                                     @endif
                                 </div>
                             </div>
@@ -441,20 +467,25 @@ class extends Component
             </section>
         @endif
 
+        @include('partials.where-to-watch', ['tmdbId' => $tmdbId, 'mediaType' => 'tv'])
+
         {{-- Cast --}}
         @if(count($cast) > 0)
             <section class="mt-12">
-                <h2 class="mb-4 text-xl font-bold">Cast</h2>
+                <h2 class="mb-5 flex items-center gap-2 text-xl font-bold">
+                    <span class="h-5 w-1 rounded-full bg-purple-500"></span>
+                    Cast
+                </h2>
                 <div class="scrollbar-hide -mx-4 flex gap-4 overflow-x-auto px-4 pb-2">
                     @foreach($cast as $person)
                         <a href="{{ route('people.detail', $person['id']) }}" class="group w-20 shrink-0 text-center sm:w-24" wire:navigate>
-                            <div class="mx-auto aspect-square w-full overflow-hidden rounded-full bg-zinc-800">
+                            <div class="mx-auto aspect-square w-full overflow-hidden rounded-2xl bg-zinc-800 ring-1 ring-white/[0.06] transition group-hover:ring-amber-500/40">
                                 @if(!empty($person['profile_path']))
-                                    <img src="{{ app(Tmdb::class)->imageUrl($person['profile_path'], 'w185') }}" alt="{{ $person['name'] }}" class="h-full w-full object-cover" loading="lazy">
+                                    <img src="{{ app(Tmdb::class)->imageUrl($person['profile_path'], 'w185') }}" alt="{{ $person['name'] }}" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" loading="lazy">
                                 @endif
                             </div>
-                            <p class="mt-2 text-xs font-medium text-zinc-300 group-hover:text-amber-400">{{ $person['name'] }}</p>
-                            <p class="text-xs text-zinc-500">{{ Str::limit($person['character'] ?? '', 20) }}</p>
+                            <p class="mt-2 text-xs font-medium text-zinc-300 transition group-hover:text-amber-400">{{ $person['name'] }}</p>
+                            <p class="text-[11px] text-zinc-500">{{ Str::limit($person['character'] ?? '', 20) }}</p>
                         </a>
                     @endforeach
                 </div>
