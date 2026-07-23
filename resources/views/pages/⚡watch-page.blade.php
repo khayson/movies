@@ -549,14 +549,21 @@ class extends Component
         </div>
     </div>
 
-    {{-- PostMessage listener for CineSrc progress tracking --}}
+    {{-- Player tracking: postMessage + localStorage fallback --}}
     <script>
         function watchPlayer() {
             return {
                 saveTimer: null,
+                heartbeatTimer: null,
+                startTime: 0,
+                watchKey: 'sv_watch_{{ $type }}_{{ $tmdbId }}',
                 lastProgress: 0,
                 lastDuration: 0,
+                postMessageActive: false,
                 init() {
+                    this.startTime = Date.now();
+                    this.restoreFromLocal();
+
                     window.addEventListener('message', (event) => {
                         if (event.origin !== 'https://cinesrc.st') return;
                         const data = event.data;
@@ -564,8 +571,10 @@ class extends Component
 
                         switch (data.type) {
                             case 'cinesrc:timeupdate':
+                                this.postMessageActive = true;
                                 this.lastProgress = Math.floor(data.time || 0);
                                 this.lastDuration = Math.floor(data.duration || 0);
+                                this.saveToLocal();
                                 this.debounceSave();
                                 break;
                             case 'cinesrc:error':
@@ -573,14 +582,61 @@ class extends Component
                                 break;
                         }
                     });
+
+                    this.heartbeatTimer = setInterval(() => {
+                        if (this.postMessageActive) return;
+                        const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
+                        if (elapsed > 5) {
+                            this.lastProgress = elapsed;
+                            this.lastDuration = Math.max(this.lastDuration, elapsed + 300);
+                            this.saveToLocal();
+                            this.debounceSave();
+                        }
+                    }, 10000);
+
+                    window.addEventListener('beforeunload', () => {
+                        this.saveToLocal();
+                        this.saveNow();
+                    });
+
+                    document.addEventListener('livewire:navigating', () => {
+                        this.saveToLocal();
+                        this.saveNow();
+                    });
+                },
+                restoreFromLocal() {
+                    try {
+                        const saved = JSON.parse(localStorage.getItem(this.watchKey) || 'null');
+                        if (saved) {
+                            this.lastProgress = saved.progress || 0;
+                            this.lastDuration = saved.duration || 0;
+                        }
+                    } catch {}
+                },
+                saveToLocal() {
+                    try {
+                        localStorage.setItem(this.watchKey, JSON.stringify({
+                            progress: this.lastProgress,
+                            duration: this.lastDuration,
+                            server: {{ $activeServer }},
+                            ts: Date.now()
+                        }));
+                    } catch {}
+                },
+                saveNow() {
+                    if (this.saveTimer) clearTimeout(this.saveTimer);
+                    if (this.lastProgress > 0 && this.lastDuration > 0) {
+                        @this.call('saveProgress', this.lastProgress, this.lastDuration);
+                    }
                 },
                 debounceSave() {
                     if (this.saveTimer) clearTimeout(this.saveTimer);
                     this.saveTimer = setTimeout(() => {
-                        if (this.lastProgress > 0 && this.lastDuration > 0) {
-                            @this.call('saveProgress', this.lastProgress, this.lastDuration);
-                        }
+                        this.saveNow();
                     }, 5000);
+                },
+                destroy() {
+                    if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
                 }
             };
         }
