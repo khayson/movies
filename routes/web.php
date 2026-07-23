@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\AffiliateClick;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
 Route::livewire('/', 'pages::home-page')->name('home');
@@ -27,6 +29,22 @@ Route::livewire('/mood', 'pages::mood-picker')->name('mood.index');
 Route::livewire('/discover', 'pages::discover')->name('discover');
 Route::livewire('/trailers', 'pages::trailers-hub')->name('trailers');
 Route::livewire('/leaderboard', 'pages::leaderboard')->name('leaderboard');
+Route::livewire('/feed', 'pages::activity-feed')->name('activity.feed');
+Route::livewire('/watch-parties', 'pages::watch-parties')->name('watch-parties');
+
+Route::post('/api/affiliate-click', function (Request $request) {
+    AffiliateClick::create([
+        'user_id' => auth()->id(),
+        'service_name' => $request->string('service_name')->limit(100),
+        'service_id' => $request->string('service_id')->limit(50),
+        'tmdb_id' => (int) $request->input('tmdb_id'),
+        'media_type' => $request->string('media_type')->limit(10),
+        'link' => $request->string('link')->limit(500),
+        'ip_address' => $request->ip(),
+    ]);
+
+    return response()->json(['ok' => true]);
+})->name('affiliate.click');
 
 Route::view('/terms', 'pages.terms')->name('terms');
 Route::view('/privacy', 'pages.privacy')->name('privacy');
@@ -34,6 +52,7 @@ Route::view('/architecture', 'pages.architecture')->name('architecture');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
+    Route::livewire('/notifications', 'pages::notifications')->name('notifications');
 });
 
 Route::middleware(['auth', 'verified', 'adult.verified'])->group(function () {

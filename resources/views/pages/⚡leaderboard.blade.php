@@ -17,19 +17,19 @@ class extends Component
     public function with(): array
     {
         $topReviewers = User::withCount('reviews')
-            ->having('reviews_count', '>', 0)
+            ->has('reviews')
             ->orderByDesc('reviews_count')
             ->limit(20)
             ->get();
 
         $mostActive = User::withCount('watchHistory')
-            ->having('watch_history_count', '>', 0)
+            ->has('watchHistory')
             ->orderByDesc('watch_history_count')
             ->limit(20)
             ->get();
 
         $topCollectors = User::withCount('collections')
-            ->having('collections_count', '>', 0)
+            ->has('collections')
             ->orderByDesc('collections_count')
             ->limit(20)
             ->get();

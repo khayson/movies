@@ -7,6 +7,7 @@ use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -28,10 +29,12 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property string|null $remember_token
  * @property array<string, mixed>|null $preferences
  * @property Carbon|null $date_of_birth
+ * @property bool $is_premium
+ * @property Carbon|null $premium_until
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['name', 'email', 'password', 'preferences', 'date_of_birth'])]
+#[Fillable(['name', 'email', 'password', 'preferences', 'date_of_birth', 'is_premium', 'premium_until'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
 class User extends Authenticatable implements PasskeyUser
 {
@@ -50,6 +53,8 @@ class User extends Authenticatable implements PasskeyUser
             'password' => 'hashed',
             'preferences' => 'array',
             'date_of_birth' => 'date',
+            'is_premium' => 'boolean',
+            'premium_until' => 'datetime',
         ];
     }
 
@@ -135,6 +140,56 @@ class User extends Authenticatable implements PasskeyUser
     public function canViewAdultContent(): bool
     {
         return $this->isAdult() && ($this->preferences['show_adult_content'] ?? false);
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function followers(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'follows', 'following_id', 'follower_id')->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<User, $this>
+     */
+    public function following(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'follows', 'follower_id', 'following_id')->withTimestamps();
+    }
+
+    /**
+     * @return HasMany<UserNotification, $this>
+     */
+    public function userNotifications(): HasMany
+    {
+        return $this->hasMany(UserNotification::class)->latest();
+    }
+
+    /**
+     * @return HasMany<Activity, $this>
+     */
+    public function activities(): HasMany
+    {
+        return $this->hasMany(Activity::class)->latest();
+    }
+
+    /**
+     * @return HasMany<WatchParty, $this>
+     */
+    public function watchParties(): HasMany
+    {
+        return $this->hasMany(WatchParty::class, 'host_id');
+    }
+
+    public function isFollowing(User $user): bool
+    {
+        return $this->following()->where('following_id', $user->id)->exists();
+    }
+
+    public function isPremium(): bool
+    {
+        return $this->is_premium && ($this->premium_until === null || $this->premium_until->isFuture());
     }
 
     public function initials(): string

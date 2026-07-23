@@ -16,6 +16,10 @@ class extends Component
 
     public string $contentLanguage = 'en';
 
+    public string $streamingCountry = 'us';
+
+    public bool $emailNotifications = true;
+
     public bool $autoplayTrailers = true;
 
     public bool $showAdultContent = false;
@@ -29,6 +33,8 @@ class extends Component
         $this->defaultSource = $prefs['default_source'] ?? '';
         $this->preferredType = $prefs['preferred_type'] ?? 'all';
         $this->contentLanguage = $prefs['content_language'] ?? 'en';
+        $this->streamingCountry = $prefs['streaming_country'] ?? 'us';
+        $this->emailNotifications = $prefs['email_notifications'] ?? true;
         $this->autoplayTrailers = $prefs['autoplay_trailers'] ?? true;
         $this->showAdultContent = $prefs['show_adult_content'] ?? false;
         $this->dateOfBirth = $user->date_of_birth?->format('Y-m-d') ?? '';
@@ -64,6 +70,8 @@ class extends Component
                 'default_source' => $this->defaultSource,
                 'preferred_type' => $this->preferredType,
                 'content_language' => $this->contentLanguage,
+                'streaming_country' => $this->streamingCountry,
+                'email_notifications' => $this->emailNotifications,
                 'autoplay_trailers' => $this->autoplayTrailers,
                 'show_adult_content' => $this->showAdultContent,
             ],
@@ -149,6 +157,35 @@ class extends Component
                     <flux:select.option value="ar">Arabic</flux:select.option>
                     <flux:select.option value="hi">Hindi</flux:select.option>
                 </flux:select>
+            </div>
+
+            {{-- Streaming country --}}
+            <div>
+                <flux:select wire:model="streamingCountry" :label="__('Streaming Country')" :description="__('Show streaming availability for this country')">
+                    <flux:select.option value="us">United States</flux:select.option>
+                    <flux:select.option value="gb">United Kingdom</flux:select.option>
+                    <flux:select.option value="ca">Canada</flux:select.option>
+                    <flux:select.option value="au">Australia</flux:select.option>
+                    <flux:select.option value="de">Germany</flux:select.option>
+                    <flux:select.option value="fr">France</flux:select.option>
+                    <flux:select.option value="es">Spain</flux:select.option>
+                    <flux:select.option value="it">Italy</flux:select.option>
+                    <flux:select.option value="br">Brazil</flux:select.option>
+                    <flux:select.option value="mx">Mexico</flux:select.option>
+                    <flux:select.option value="in">India</flux:select.option>
+                    <flux:select.option value="jp">Japan</flux:select.option>
+                    <flux:select.option value="kr">South Korea</flux:select.option>
+                    <flux:select.option value="ng">Nigeria</flux:select.option>
+                    <flux:select.option value="gh">Ghana</flux:select.option>
+                    <flux:select.option value="za">South Africa</flux:select.option>
+                    <flux:select.option value="se">Sweden</flux:select.option>
+                    <flux:select.option value="nl">Netherlands</flux:select.option>
+                </flux:select>
+            </div>
+
+            {{-- Notification preferences --}}
+            <div>
+                <flux:switch wire:model="emailNotifications" :label="__('Email Notifications')" :description="__('Receive notifications about new releases and watchlist updates')" />
             </div>
 
             {{-- Autoplay trailers --}}

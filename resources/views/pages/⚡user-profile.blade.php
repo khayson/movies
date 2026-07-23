@@ -1,6 +1,8 @@
 <?php
 
+use App\Models\Follow;
 use App\Models\User;
+use App\Services\ActivityLogger;
 use App\Services\BadgeService;
 use App\Services\StreakService;
 use App\Services\Tmdb;
@@ -16,6 +18,33 @@ class extends Component
     public function mount(int $userId): void
     {
         $this->userId = $userId;
+    }
+
+    public function toggleFollow(): void
+    {
+        $user = auth()->user();
+        if (!$user || $user->id === $this->userId) {
+            return;
+        }
+
+        $existing = Follow::where('follower_id', $user->id)
+            ->where('following_id', $this->userId)
+            ->first();
+
+        if ($existing) {
+            $existing->delete();
+        } else {
+            Follow::create([
+                'follower_id' => $user->id,
+                'following_id' => $this->userId,
+            ]);
+
+            $targetUser = User::find($this->userId);
+            if ($targetUser) {
+                $logger = app(ActivityLogger::class);
+                $activity = $logger->log($user, 'follow', "followed {$targetUser->name}");
+            }
+        }
     }
 
     public function with(StreakService $streakService, BadgeService $badgeService): array
@@ -39,6 +68,10 @@ class extends Component
             'collections' => $user->collections()->count(),
         ];
 
+        $isFollowing = auth()->check() && auth()->user()->isFollowing($user);
+        $followersCount = $user->followers()->count();
+        $followingCount = $user->following()->count();
+
         return [
             'profileUser' => $user,
             'streak' => $streak,
@@ -46,6 +79,9 @@ class extends Component
             'recentReviews' => $recentReviews,
             'publicCollections' => $publicCollections,
             'stats' => $stats,
+            'isFollowing' => $isFollowing,
+            'followersCount' => $followersCount,
+            'followingCount' => $followingCount,
         ];
     }
 };
@@ -58,10 +94,27 @@ class extends Component
             <div class="flex size-20 items-center justify-center rounded-full bg-amber-600/20 text-2xl font-bold text-amber-400">
                 {{ Str::upper(Str::substr($profileUser->name, 0, 1)) }}
             </div>
-            <div>
-                <h1 class="text-3xl font-bold">{{ $profileUser->name }}</h1>
+            <div class="flex-1">
+                <div class="flex items-center gap-4">
+                    <h1 class="text-3xl font-bold">{{ $profileUser->name }}</h1>
+                    @if($profileUser->isPremium())
+                        <span class="rounded-full bg-amber-600/20 px-2.5 py-0.5 text-xs font-semibold text-amber-400">Premium</span>
+                    @endif
+                </div>
                 <p class="text-sm text-zinc-500">Joined {{ $profileUser->created_at->format('M Y') }}</p>
+                <div class="mt-2 flex items-center gap-4 text-sm text-zinc-400">
+                    <span><strong class="text-zinc-200">{{ $followersCount }}</strong> {{ Str::plural('follower', $followersCount) }}</span>
+                    <span><strong class="text-zinc-200">{{ $followingCount }}</strong> following</span>
+                </div>
             </div>
+            @auth
+                @if(auth()->id() !== $profileUser->id)
+                    <button wire:click="toggleFollow"
+                            class="rounded-lg px-5 py-2 text-sm font-semibold transition {{ $isFollowing ? 'border border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-red-700 hover:text-red-400' : 'bg-amber-600 text-white hover:bg-amber-500' }}">
+                        {{ $isFollowing ? 'Unfollow' : 'Follow' }}
+                    </button>
+                @endif
+            @endauth
         </div>
 
         {{-- Stats --}}
