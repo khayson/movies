@@ -15,6 +15,19 @@ Route::livewire('/genres/{type}/{genreId}/{genreName}', 'pages::genre-browse')->
 Route::livewire('/upcoming', 'pages::upcoming-index')->name('upcoming.index');
 Route::livewire('/new-releases', 'pages::new-releases')->name('new-releases');
 
+Route::livewire('/collections', 'pages::collections-index')->name('collections.index');
+Route::livewire('/collections/{slug}', 'pages::collection-show')->name('collections.show');
+
+Route::livewire('/people', 'pages::people-index')->name('people.index');
+Route::livewire('/people/{personId}', 'pages::person-detail')->name('people.detail');
+
+Route::livewire('/u/{userId}', 'pages::user-profile')->name('user.profile');
+
+Route::livewire('/mood', 'pages::mood-picker')->name('mood.index');
+Route::livewire('/discover', 'pages::discover')->name('discover');
+Route::livewire('/trailers', 'pages::trailers-hub')->name('trailers');
+Route::livewire('/leaderboard', 'pages::leaderboard')->name('leaderboard');
+
 Route::view('/terms', 'pages.terms')->name('terms');
 Route::view('/privacy', 'pages.privacy')->name('privacy');
 Route::view('/architecture', 'pages.architecture')->name('architecture');

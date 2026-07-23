@@ -1,7 +1,10 @@
 <?php
 
+use App\Models\EpisodeWatch;
+use App\Models\Review;
 use App\Services\Tmdb;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Validate;
 use Livewire\Component;
 
 new
@@ -12,6 +15,21 @@ class extends Component
 
     public int $selectedSeason = 1;
 
+    #[Validate('required|integer|min:1|max:10')]
+    public int $reviewRating = 8;
+
+    #[Validate('required|string|min:3|max:100')]
+    public string $reviewTitle = '';
+
+    #[Validate('nullable|string|max:5000')]
+    public string $reviewBody = '';
+
+    public bool $reviewSpoilers = false;
+
+    public bool $showReviewForm = false;
+
+    public bool $showCollectionPicker = false;
+
     public function mount(int $tmdbId): void
     {
         $this->tmdbId = $tmdbId;
@@ -20,6 +38,107 @@ class extends Component
     public function selectSeason(int $season): void
     {
         $this->selectedSeason = $season;
+    }
+
+    public function submitReview(): void
+    {
+        $user = auth()->user();
+        if (! $user) {
+            $this->redirect(route('login'));
+
+            return;
+        }
+
+        $this->validate();
+
+        $user->reviews()->updateOrCreate(
+            ['tmdb_id' => $this->tmdbId, 'media_type' => 'tv'],
+            [
+                'title' => $this->reviewTitle,
+                'rating' => $this->reviewRating,
+                'body' => $this->reviewBody ?: null,
+                'contains_spoilers' => $this->reviewSpoilers,
+            ],
+        );
+
+        $this->showReviewForm = false;
+        $this->reviewTitle = '';
+        $this->reviewBody = '';
+        $this->reviewRating = 8;
+        $this->reviewSpoilers = false;
+    }
+
+    public function deleteReview(): void
+    {
+        auth()->user()?->reviews()->where('tmdb_id', $this->tmdbId)->where('media_type', 'tv')->delete();
+    }
+
+    public function addToCollection(int $collectionId, string $title, ?string $posterPath): void
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return;
+        }
+
+        $collection = $user->collections()->find($collectionId);
+        if (! $collection) {
+            return;
+        }
+
+        $collection->items()->firstOrCreate(
+            ['tmdb_id' => $this->tmdbId, 'media_type' => 'tv'],
+            [
+                'title' => $title,
+                'poster_path' => $posterPath,
+                'sort_order' => $collection->items()->count(),
+            ],
+        );
+
+        $this->showCollectionPicker = false;
+    }
+
+    public function toggleEpisodeWatched(int $season, int $episode): void
+    {
+        $user = auth()->user();
+        if (! $user) {
+            $this->redirect(route('login'));
+
+            return;
+        }
+
+        $existing = $user->episodeWatches()
+            ->where('tmdb_id', $this->tmdbId)
+            ->where('season_number', $season)
+            ->where('episode_number', $episode)
+            ->first();
+
+        if ($existing) {
+            $existing->delete();
+        } else {
+            $user->episodeWatches()->create([
+                'tmdb_id' => $this->tmdbId,
+                'season_number' => $season,
+                'episode_number' => $episode,
+            ]);
+        }
+    }
+
+    public function markSeasonWatched(int $season, int $episodeCount): void
+    {
+        $user = auth()->user();
+        if (! $user) {
+            $this->redirect(route('login'));
+
+            return;
+        }
+
+        for ($ep = 1; $ep <= $episodeCount; $ep++) {
+            $user->episodeWatches()->firstOrCreate([
+                'tmdb_id' => $this->tmdbId,
+                'season_number' => $season,
+                'episode_number' => $ep,
+            ]);
+        }
     }
 
     public function toggleFavorite(string $title, ?string $posterPath): void
@@ -90,6 +209,25 @@ class extends Component
             return $v['site'] === 'YouTube' && in_array($v['type'], ['Trailer', 'Teaser']);
         });
 
+        $reviews = Review::where('tmdb_id', $this->tmdbId)
+            ->where('media_type', 'tv')
+            ->with('user')
+            ->latest()
+            ->limit(20)
+            ->get();
+
+        $userCollections = auth()->check()
+            ? auth()->user()->collections()->latest()->get()
+            : collect();
+
+        $watchedEpisodes = auth()->check()
+            ? auth()->user()->episodeWatches()
+                ->where('tmdb_id', $this->tmdbId)
+                ->get()
+                ->map(fn (EpisodeWatch $ew) => $ew->season_number.'-'.$ew->episode_number)
+                ->toArray()
+            : [];
+
         return [
             'show' => $show,
             'isFavorited' => $isFavorited,
@@ -100,6 +238,11 @@ class extends Component
             'seasonData' => $seasonData,
             'trailer' => $trailer,
             'similar' => array_slice($show['similar']['results'] ?? [], 0, 6),
+            'reviews' => $reviews,
+            'userReview' => auth()->check() ? $reviews->firstWhere('user_id', auth()->id()) : null,
+            'averageUserRating' => $reviews->count() > 0 ? round($reviews->avg('rating'), 1) : null,
+            'userCollections' => $userCollections,
+            'watchedEpisodes' => $watchedEpisodes,
         ];
     }
 };
@@ -200,6 +343,7 @@ class extends Component
                         <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $isOnWatchlist ? 'M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' : 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' }}" /></svg>
                         {{ $isOnWatchlist ? 'On Watchlist' : 'Watchlist' }}
                     </button>
+                    @include('partials.add-to-collection', ['mediaTitle' => $title, 'mediaPoster' => $show['poster_path'] ?? null])
                 </div>
             </div>
         </div>
@@ -238,31 +382,59 @@ class extends Component
                 </div>
 
                 @if($seasonData && !empty($seasonData['episodes']))
+                    @auth
+                        @php
+                            $seasonEpCount = count($seasonData['episodes']);
+                            $watchedInSeason = collect($watchedEpisodes)->filter(fn ($key) => str_starts_with($key, $selectedSeason.'-'))->count();
+                        @endphp
+                        <div class="mb-3 flex items-center justify-between">
+                            <span class="text-sm text-zinc-500">{{ $watchedInSeason }}/{{ $seasonEpCount }} watched</span>
+                            @if($watchedInSeason < $seasonEpCount)
+                                <button wire:click="markSeasonWatched({{ $selectedSeason }}, {{ $seasonEpCount }})"
+                                        class="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 transition hover:bg-zinc-700">
+                                    Mark Season Watched
+                                </button>
+                            @endif
+                        </div>
+                    @endauth
                     <div class="space-y-3">
                         @foreach($seasonData['episodes'] as $ep)
-                            <a href="{{ route('watch', ['type' => 'tv', 'tmdbId' => $this->tmdbId, 'season' => $selectedSeason, 'episode' => $ep['episode_number']]) }}"
-                               class="flex gap-4 rounded-lg bg-zinc-900 p-4 transition hover:bg-zinc-800">
+                            @php $isWatched = in_array($selectedSeason.'-'.$ep['episode_number'], $watchedEpisodes); @endphp
+                            <div class="flex gap-4 rounded-lg bg-zinc-900 p-4 transition hover:bg-zinc-800 {{ $isWatched ? 'opacity-70' : '' }}">
                                 <div class="w-40 shrink-0 overflow-hidden rounded-lg bg-zinc-800">
-                                    @if(!empty($ep['still_path']))
-                                        <img src="{{ app(Tmdb::class)->imageUrl($ep['still_path'], 'w300') }}" alt="" class="aspect-video w-full object-cover" loading="lazy">
-                                    @else
-                                        <div class="flex aspect-video items-center justify-center text-zinc-600">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="size-8" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                                        </div>
-                                    @endif
+                                    <a href="{{ route('watch', ['type' => 'tv', 'tmdbId' => $this->tmdbId, 'season' => $selectedSeason, 'episode' => $ep['episode_number']]) }}">
+                                        @if(!empty($ep['still_path']))
+                                            <img src="{{ app(Tmdb::class)->imageUrl($ep['still_path'], 'w300') }}" alt="" class="aspect-video w-full object-cover" loading="lazy">
+                                        @else
+                                            <div class="flex aspect-video items-center justify-center text-zinc-600">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="size-8" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                            </div>
+                                        @endif
+                                    </a>
                                 </div>
                                 <div class="flex-1">
-                                    <h3 class="font-medium text-zinc-200">
-                                        E{{ $ep['episode_number'] }}. {{ $ep['name'] ?? 'Episode '.$ep['episode_number'] }}
-                                    </h3>
-                                    @if(!empty($ep['runtime']))
-                                        <p class="text-xs text-zinc-500">{{ $ep['runtime'] }} min</p>
-                                    @endif
+                                    <div class="flex items-start justify-between">
+                                        <a href="{{ route('watch', ['type' => 'tv', 'tmdbId' => $this->tmdbId, 'season' => $selectedSeason, 'episode' => $ep['episode_number']]) }}" class="flex-1">
+                                            <h3 class="font-medium text-zinc-200">
+                                                E{{ $ep['episode_number'] }}. {{ $ep['name'] ?? 'Episode '.$ep['episode_number'] }}
+                                            </h3>
+                                            @if(!empty($ep['runtime']))
+                                                <p class="text-xs text-zinc-500">{{ $ep['runtime'] }} min</p>
+                                            @endif
+                                        </a>
+                                        @auth
+                                            <button wire:click="toggleEpisodeWatched({{ $selectedSeason }}, {{ $ep['episode_number'] }})"
+                                                    class="ml-2 shrink-0 rounded-full p-1.5 transition {{ $isWatched ? 'bg-green-600/20 text-green-400 hover:bg-red-600/20 hover:text-red-400' : 'bg-zinc-800 text-zinc-500 hover:bg-green-600/20 hover:text-green-400' }}"
+                                                    title="{{ $isWatched ? 'Mark unwatched' : 'Mark watched' }}">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $isWatched ? 'M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' : 'M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' }}" /></svg>
+                                            </button>
+                                        @endauth
+                                    </div>
                                     @if(!empty($ep['overview']))
                                         <p class="mt-1 text-sm leading-relaxed text-zinc-400">{{ Str::limit($ep['overview'], 150) }}</p>
                                     @endif
                                 </div>
-                            </a>
+                            </div>
                         @endforeach
                     </div>
                 @endif
@@ -275,19 +447,21 @@ class extends Component
                 <h2 class="mb-4 text-xl font-bold">Cast</h2>
                 <div class="scrollbar-hide -mx-4 flex gap-4 overflow-x-auto px-4 pb-2">
                     @foreach($cast as $person)
-                        <div class="w-20 shrink-0 text-center sm:w-24">
+                        <a href="{{ route('people.detail', $person['id']) }}" class="group w-20 shrink-0 text-center sm:w-24" wire:navigate>
                             <div class="mx-auto aspect-square w-full overflow-hidden rounded-full bg-zinc-800">
                                 @if(!empty($person['profile_path']))
                                     <img src="{{ app(Tmdb::class)->imageUrl($person['profile_path'], 'w185') }}" alt="{{ $person['name'] }}" class="h-full w-full object-cover" loading="lazy">
                                 @endif
                             </div>
-                            <p class="mt-2 text-xs font-medium text-zinc-300">{{ $person['name'] }}</p>
+                            <p class="mt-2 text-xs font-medium text-zinc-300 group-hover:text-amber-400">{{ $person['name'] }}</p>
                             <p class="text-xs text-zinc-500">{{ Str::limit($person['character'] ?? '', 20) }}</p>
-                        </div>
+                        </a>
                     @endforeach
                 </div>
             </section>
         @endif
+
+        @include('partials.reviews-section')
 
         @if(count($similar) > 0)
             @include('partials.media-row', ['title' => 'Similar Shows', 'items' => $similar, 'type' => 'tv'])

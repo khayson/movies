@@ -80,6 +80,43 @@ class User extends Authenticatable implements PasskeyUser
         return $this->hasMany(Watchlist::class);
     }
 
+    /**
+     * @return HasMany<UserBadge, $this>
+     */
+    public function badges(): HasMany
+    {
+        return $this->hasMany(UserBadge::class);
+    }
+
+    /**
+     * @return HasMany<EpisodeWatch, $this>
+     */
+    public function episodeWatches(): HasMany
+    {
+        return $this->hasMany(EpisodeWatch::class);
+    }
+
+    /**
+     * @return HasMany<Collection, $this>
+     */
+    public function collections(): HasMany
+    {
+        return $this->hasMany(Collection::class)->latest();
+    }
+
+    /**
+     * @return HasMany<Review, $this>
+     */
+    public function reviews(): HasMany
+    {
+        return $this->hasMany(Review::class)->latest();
+    }
+
+    public function hasReviewed(int $tmdbId, string $mediaType): bool
+    {
+        return $this->reviews()->where('tmdb_id', $tmdbId)->where('media_type', $mediaType)->exists();
+    }
+
     public function hasFavorited(int $tmdbId, string $mediaType): bool
     {
         return $this->favorites()->where('tmdb_id', $tmdbId)->where('media_type', $mediaType)->exists();

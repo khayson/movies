@@ -1,7 +1,9 @@
 <?php
 
+use App\Models\Review;
 use App\Services\Tmdb;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Validate;
 use Livewire\Component;
 
 new
@@ -10,9 +12,81 @@ class extends Component
 {
     public int $tmdbId;
 
+    #[Validate('required|integer|min:1|max:10')]
+    public int $reviewRating = 8;
+
+    #[Validate('required|string|min:3|max:100')]
+    public string $reviewTitle = '';
+
+    #[Validate('nullable|string|max:5000')]
+    public string $reviewBody = '';
+
+    public bool $reviewSpoilers = false;
+
+    public bool $showReviewForm = false;
+
+    public bool $showCollectionPicker = false;
+
     public function mount(int $tmdbId): void
     {
         $this->tmdbId = $tmdbId;
+    }
+
+    public function submitReview(): void
+    {
+        $user = auth()->user();
+        if (! $user) {
+            $this->redirect(route('login'));
+
+            return;
+        }
+
+        $this->validate();
+
+        $user->reviews()->updateOrCreate(
+            ['tmdb_id' => $this->tmdbId, 'media_type' => 'movie'],
+            [
+                'title' => $this->reviewTitle,
+                'rating' => $this->reviewRating,
+                'body' => $this->reviewBody ?: null,
+                'contains_spoilers' => $this->reviewSpoilers,
+            ],
+        );
+
+        $this->showReviewForm = false;
+        $this->reviewTitle = '';
+        $this->reviewBody = '';
+        $this->reviewRating = 8;
+        $this->reviewSpoilers = false;
+    }
+
+    public function deleteReview(): void
+    {
+        auth()->user()?->reviews()->where('tmdb_id', $this->tmdbId)->where('media_type', 'movie')->delete();
+    }
+
+    public function addToCollection(int $collectionId, string $title, ?string $posterPath): void
+    {
+        $user = auth()->user();
+        if (! $user) {
+            return;
+        }
+
+        $collection = $user->collections()->find($collectionId);
+        if (! $collection) {
+            return;
+        }
+
+        $collection->items()->firstOrCreate(
+            ['tmdb_id' => $this->tmdbId, 'media_type' => 'movie'],
+            [
+                'title' => $title,
+                'poster_path' => $posterPath,
+                'sort_order' => $collection->items()->count(),
+            ],
+        );
+
+        $this->showCollectionPicker = false;
     }
 
     public function toggleFavorite(string $title, ?string $posterPath): void
@@ -70,6 +144,21 @@ class extends Component
         $releaseDate = $movie['release_date'] ?? '';
         $isUpcoming = $releaseDate && $releaseDate > now()->toDateString();
 
+        $reviews = Review::where('tmdb_id', $this->tmdbId)
+            ->where('media_type', 'movie')
+            ->with('user')
+            ->latest()
+            ->limit(20)
+            ->get();
+
+        $userReview = auth()->check()
+            ? $reviews->firstWhere('user_id', auth()->id())
+            : null;
+
+        $userCollections = auth()->check()
+            ? auth()->user()->collections()->latest()->get()
+            : collect();
+
         return [
             'movie' => $movie,
             'isFavorited' => $isFavorited,
@@ -78,6 +167,10 @@ class extends Component
             'cast' => array_slice($movie['credits']['cast'] ?? [], 0, 12),
             'trailer' => collect($movie['videos']['results'] ?? [])->firstWhere('type', 'Trailer'),
             'similar' => array_slice($movie['similar']['results'] ?? [], 0, 6),
+            'reviews' => $reviews,
+            'userReview' => $userReview,
+            'averageUserRating' => $reviews->count() > 0 ? round($reviews->avg('rating'), 1) : null,
+            'userCollections' => $userCollections,
         ];
     }
 };
@@ -182,6 +275,7 @@ class extends Component
                         <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="{{ $isOnWatchlist ? 'M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' : 'M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z' }}" /></svg>
                         {{ $isOnWatchlist ? 'On Watchlist' : 'Watchlist' }}
                     </button>
+                    @include('partials.add-to-collection', ['mediaTitle' => $title, 'mediaPoster' => $movie['poster_path'] ?? null])
                 </div>
             </div>
         </div>
@@ -208,19 +302,21 @@ class extends Component
                 <h2 class="mb-4 text-xl font-bold">Cast</h2>
                 <div class="scrollbar-hide -mx-4 flex gap-4 overflow-x-auto px-4 pb-2">
                     @foreach($cast as $person)
-                        <div class="w-20 shrink-0 text-center sm:w-24">
+                        <a href="{{ route('people.detail', $person['id']) }}" class="group w-20 shrink-0 text-center sm:w-24" wire:navigate>
                             <div class="mx-auto aspect-square w-full overflow-hidden rounded-full bg-zinc-800">
                                 @if(!empty($person['profile_path']))
                                     <img src="{{ app(Tmdb::class)->imageUrl($person['profile_path'], 'w185') }}" alt="{{ $person['name'] }}" class="h-full w-full object-cover" loading="lazy">
                                 @endif
                             </div>
-                            <p class="mt-2 text-xs font-medium text-zinc-300">{{ $person['name'] }}</p>
+                            <p class="mt-2 text-xs font-medium text-zinc-300 group-hover:text-amber-400">{{ $person['name'] }}</p>
                             <p class="text-xs text-zinc-500">{{ Str::limit($person['character'] ?? '', 20) }}</p>
-                        </div>
+                        </a>
                     @endforeach
                 </div>
             </section>
         @endif
+
+        @include('partials.reviews-section')
 
         {{-- Similar --}}
         @if(count($similar) > 0)

@@ -99,6 +99,24 @@ class Tmdb
     /**
      * @return array<string, mixed>
      */
+    public function person(int $id): array
+    {
+        return $this->get("/person/{$id}", [
+            'append_to_response' => 'combined_credits,external_ids,images',
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function popularPeople(int $page = 1): array
+    {
+        return $this->get('/person/popular', ['page' => $page]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function search(string $query, int $page = 1): array
     {
         return $this->get('/search/multi', [

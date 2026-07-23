@@ -29,6 +29,18 @@ class extends Component
 
     public function with(Tmdb $tmdb): array
     {
+        $continueWatching = auth()->check()
+            ? auth()->user()->watchHistory()->limit(10)->get()
+            : collect();
+
+        $hiddenGems = $tmdb->get('/discover/movie', [
+            'sort_by' => 'vote_average.desc',
+            'vote_count.gte' => 100,
+            'vote_count.lte' => 1000,
+            'vote_average.gte' => 7.5,
+            'page' => (int) (now()->dayOfYear % 10) + 1,
+        ])['results'] ?? [];
+
         return [
             'trending' => $tmdb->trending('all', 'week')['results'] ?? [],
             'popularMovies' => $tmdb->popular('movie')['results'] ?? [],
@@ -37,6 +49,8 @@ class extends Component
             'upcoming' => $tmdb->upcoming()['results'] ?? [],
             'nowPlaying' => $tmdb->nowPlaying()['results'] ?? [],
             'airingToday' => $tmdb->airingToday()['results'] ?? [],
+            'continueWatching' => $continueWatching,
+            'hiddenGems' => $hiddenGems,
         ];
     }
 };
@@ -135,6 +149,47 @@ class extends Component
     @endif
 
     <div class="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        {{-- Continue Watching --}}
+        @if($continueWatching->isNotEmpty())
+            <section class="mb-10">
+                <h2 class="mb-4 flex items-center gap-2 text-xl font-bold">
+                    <span class="h-5 w-1 rounded-full bg-amber-500"></span>
+                    Continue Watching
+                </h2>
+                <div class="scrollbar-hide -mx-4 flex gap-4 overflow-x-auto px-4 pb-2">
+                    @foreach($continueWatching as $item)
+                        @php
+                            $watchRoute = $item->media_type === 'tv'
+                                ? route('watch', ['type' => 'tv', 'tmdbId' => $item->tmdb_id, 'season' => $item->season ?? 1, 'episode' => $item->episode ?? 1])
+                                : route('watch', ['type' => 'movie', 'tmdbId' => $item->tmdb_id]);
+                        @endphp
+                        <a href="{{ $watchRoute }}" class="group w-36 shrink-0 sm:w-40" wire:navigate>
+                            <div class="relative aspect-[2/3] overflow-hidden rounded-xl bg-zinc-800">
+                                @if($item->poster_path)
+                                    <img src="{{ app(Tmdb::class)->imageUrl($item->poster_path, 'w342') }}" alt="{{ $item->title }}" class="h-full w-full object-cover transition duration-500 group-hover:scale-110" loading="lazy">
+                                @endif
+                                @if($item->duration_seconds > 0)
+                                    <div class="absolute bottom-0 left-0 right-0 h-1 bg-zinc-700">
+                                        <div class="h-full bg-amber-500" style="width: {{ $item->progressPercent() }}%"></div>
+                                    </div>
+                                @endif
+                                <div class="absolute inset-0 flex items-center justify-center bg-black/30 opacity-0 transition-opacity group-hover:opacity-100">
+                                    <div class="flex size-10 items-center justify-center rounded-full bg-amber-600/90 text-white">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4 translate-x-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                    </div>
+                                </div>
+                                <span class="absolute left-2 top-2 rounded bg-zinc-900/80 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-zinc-300">{{ $item->media_type }}</span>
+                            </div>
+                            <h3 class="mt-2 text-sm font-medium text-zinc-300 transition group-hover:text-white">{{ Str::limit($item->title, 25) }}</h3>
+                            @if($item->media_type === 'tv' && $item->season)
+                                <p class="text-xs text-zinc-500">S{{ $item->season }} E{{ $item->episode }}</p>
+                            @endif
+                        </a>
+                    @endforeach
+                </div>
+            </section>
+        @endif
+
         {{-- Trending This Week — scrollable --}}
         @include('partials.media-row', ['title' => 'Trending This Week', 'items' => $trending, 'style' => 'scroll'])
 
@@ -183,5 +238,15 @@ class extends Component
             'type' => 'movie',
             'style' => 'scroll',
         ])
+
+        {{-- Hidden Gems / Daily Picks --}}
+        @if(count($hiddenGems) > 0)
+            @include('partials.media-row', [
+                'title' => 'Hidden Gems — Daily Picks',
+                'items' => $hiddenGems,
+                'type' => 'movie',
+                'style' => 'scroll',
+            ])
+        @endif
     </div>
 </div>
