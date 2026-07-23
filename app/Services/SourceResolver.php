@@ -6,6 +6,22 @@ use Illuminate\Support\Facades\Cache;
 
 class SourceResolver
 {
+    /** @var array<string, int> Provider reliability scores (higher = better) */
+    private const PROVIDER_SCORES = [
+        'CineSrc' => 95,
+        'VidCore' => 85,
+        'VidPhantom' => 80,
+        'VidSrc' => 82,
+        'EzVidAPI' => 75,
+        'VidLink' => 78,
+        'SuperEmbed' => 70,
+        'Embed API' => 65,
+        'AutoEmbed' => 72,
+        'MoviesAPI' => 68,
+        'VidBinge' => 74,
+        'VikingEmbed' => 60,
+    ];
+
     /**
      * @return array<int, array{type: string, url: string, quality: string, provider: string}>
      */
@@ -31,6 +47,64 @@ class SourceResolver
 
             return $sources;
         });
+    }
+
+    /**
+     * Select the best server index based on user history, provider reliability, and error tracking.
+     */
+    public function recommendServer(int $tmdbId, string $mediaType, ?int $season, ?int $episode): int
+    {
+        $sources = $this->resolve($tmdbId, $mediaType, $season, $episode);
+        if (count($sources) === 0) {
+            return 0;
+        }
+
+        $userLastServer = null;
+        if (auth()->check()) {
+            $history = auth()->user()->watchHistory()
+                ->where('tmdb_id', $tmdbId)
+                ->where('media_type', $mediaType)
+                ->first();
+            $userLastServer = $history?->last_server;
+        }
+
+        $failedProviders = Cache::get('failed_providers', []);
+
+        $bestIndex = 0;
+        $bestScore = -1;
+
+        foreach ($sources as $i => $source) {
+            if ($source['type'] !== 'embed') {
+                continue;
+            }
+
+            $provider = $source['provider'] ?? '';
+            $score = self::PROVIDER_SCORES[$provider] ?? 50;
+
+            if ($provider === $userLastServer) {
+                $score += 20;
+            }
+
+            if (isset($failedProviders[$provider])) {
+                $failedAt = $failedProviders[$provider];
+                $minutesAgo = (time() - $failedAt) / 60;
+                $score -= max(0, (int) (30 - $minutesAgo));
+            }
+
+            if ($score > $bestScore) {
+                $bestScore = $score;
+                $bestIndex = $i;
+            }
+        }
+
+        return $bestIndex;
+    }
+
+    public function reportFailure(string $provider): void
+    {
+        $failed = Cache::get('failed_providers', []);
+        $failed[$provider] = time();
+        Cache::put('failed_providers', $failed, now()->addMinutes(30));
     }
 
     /**

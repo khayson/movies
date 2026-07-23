@@ -3,6 +3,13 @@
 return [
     'providers' => [
         [
+            'name' => 'CineSrc',
+            'driver' => 'embed',
+            'movie_url' => env('CINESRC_MOVIE_URL', 'https://cinesrc.st/embed/movie/{id}?color=%23d97706&seek=10&autoplay=true'),
+            'tv_url' => env('CINESRC_TV_URL', 'https://cinesrc.st/embed/tv/{id}?s={season}&e={episode}&color=%23d97706&seek=10&autoplay=true'),
+            'supports_postmessage' => true,
+        ],
+        [
             'name' => 'VidCore',
             'driver' => 'embed',
             'movie_url' => env('VIDCORE_MOVIE_URL', 'https://vidcore.org/embed/movie/{id}'),
@@ -13,12 +20,6 @@ return [
             'driver' => 'embed',
             'movie_url' => env('VIDPHANTOM_MOVIE_URL', 'https://vidphantom.com/movie/{id}'),
             'tv_url' => env('VIDPHANTOM_TV_URL', 'https://vidphantom.com/tv/{id}/{season}/{episode}'),
-        ],
-        [
-            'name' => 'CineSrc',
-            'driver' => 'embed',
-            'movie_url' => env('CINESRC_MOVIE_URL', 'https://cinesrc.st/embed/movie/{id}'),
-            'tv_url' => env('CINESRC_TV_URL', 'https://cinesrc.st/embed/tv/{id}?s={season}&e={episode}'),
         ],
         [
             'name' => 'VidSrc',

@@ -19,8 +19,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $duration_seconds
  * @property int|null $season
  * @property int|null $episode
+ * @property string|null $last_server
  */
-#[Fillable(['user_id', 'tmdb_id', 'media_type', 'title', 'poster_path', 'progress_seconds', 'duration_seconds', 'season', 'episode'])]
+#[Fillable(['user_id', 'tmdb_id', 'media_type', 'title', 'poster_path', 'progress_seconds', 'duration_seconds', 'season', 'episode', 'last_server'])]
 class WatchHistory extends Model
 {
     /** @use HasFactory<WatchHistoryFactory> */
