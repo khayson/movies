@@ -15,7 +15,7 @@ use Livewire\Attributes\Locked;
 use Livewire\Attributes\On;
 
 new
-#[Layout('layouts.guest')]
+#[Layout('layouts.app')]
 #[Title('Security settings')]
 class extends Component {
     use PasswordValidationRules;

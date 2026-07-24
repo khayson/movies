@@ -1,5 +1,7 @@
 <?php
 
+use App\Http\Controllers\Api\MediaCardController;
+use App\Http\Controllers\Api\SearchController;
 use App\Models\AffiliateClick;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -31,6 +33,11 @@ Route::livewire('/trailers', 'pages::trailers-hub')->name('trailers');
 Route::livewire('/leaderboard', 'pages::leaderboard')->name('leaderboard');
 Route::livewire('/feed', 'pages::activity-feed')->name('activity.feed');
 Route::livewire('/watch-parties', 'pages::watch-parties')->name('watch-parties');
+
+Route::get('/api/search', SearchController::class)->name('api.search');
+Route::get('/api/media/{type}/{id}', [MediaCardController::class, 'show'])->name('api.media.show')->where(['type' => 'movie|tv', 'id' => '[0-9]+']);
+Route::post('/api/media/{type}/{id}/watchlist', [MediaCardController::class, 'toggleWatchlist'])->name('api.media.watchlist')->where(['type' => 'movie|tv', 'id' => '[0-9]+']);
+Route::post('/api/media/{type}/{id}/favorite', [MediaCardController::class, 'toggleFavorite'])->name('api.media.favorite')->where(['type' => 'movie|tv', 'id' => '[0-9]+']);
 
 Route::post('/api/affiliate-click', function (Request $request) {
     AffiliateClick::create([

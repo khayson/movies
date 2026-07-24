@@ -41,27 +41,41 @@ class extends Component
 ?>
 
 <div>
-    <div class="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
-        <div class="mb-6 flex items-center justify-between">
-            <h1 class="text-2xl font-bold">Activity Feed</h1>
-            <div class="flex gap-2">
-                <button wire:click="$set('filter', 'following')"
-                        class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $filter === 'following' ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' }}">
-                    Following
-                </button>
-                <button wire:click="$set('filter', 'everyone')"
-                        class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $filter === 'everyone' ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700' }}">
-                    Everyone
-                </button>
+    {{-- Header --}}
+    <div class="relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-b from-emerald-950/15 via-zinc-950/80 to-zinc-950"></div>
+        <div class="relative mx-auto max-w-3xl px-4 pb-8 pt-12 sm:px-6 lg:px-8">
+            <div class="flex items-end justify-between">
+                <div>
+                    <div class="mb-2 flex items-center gap-3">
+                        <span class="h-6 w-1 rounded-full bg-emerald-500"></span>
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-400/80">Social</p>
+                    </div>
+                    <h1 class="text-4xl font-bold tracking-tight md:text-5xl">Activity Feed</h1>
+                </div>
+                <div class="flex gap-2">
+                    <button wire:click="$set('filter', 'following')"
+                            class="rounded-xl px-5 py-2.5 text-sm font-medium transition {{ $filter === 'following' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.12] hover:text-white' }}">
+                        Following
+                    </button>
+                    <button wire:click="$set('filter', 'everyone')"
+                            class="rounded-xl px-5 py-2.5 text-sm font-medium transition {{ $filter === 'everyone' ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/20' : 'border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.12] hover:text-white' }}">
+                        Everyone
+                    </button>
+                </div>
             </div>
         </div>
+    </div>
 
+    <div class="mx-auto max-w-3xl px-4 pb-16 sm:px-6 lg:px-8">
         @if($activities->isEmpty())
-            <div class="py-16 text-center">
-                <svg xmlns="http://www.w3.org/2000/svg" class="mx-auto mb-4 size-12 text-zinc-700" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                </svg>
-                <p class="text-zinc-500">No activity yet</p>
+            <div class="rounded-2xl border border-white/[0.06] bg-white/[0.02] py-20 text-center">
+                <div class="mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl bg-white/[0.04]">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-8 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                    </svg>
+                </div>
+                <p class="text-lg font-medium text-zinc-400">No activity yet</p>
                 @if($filter === 'following')
                     <p class="mt-1 text-sm text-zinc-600">Follow other users to see their activity here.</p>
                 @endif
@@ -69,14 +83,14 @@ class extends Component
         @else
             <div class="space-y-3">
                 @foreach($activities as $activity)
-                    <div class="flex items-start gap-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
+                    <div class="flex items-start gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 transition hover:border-white/[0.1] hover:bg-white/[0.03]">
                         @if($activity->poster_path)
                             <img src="https://image.tmdb.org/t/p/w92{{ $activity->poster_path }}"
-                                 alt="" class="h-16 w-11 flex-shrink-0 rounded-lg object-cover">
+                                 alt="" class="h-16 w-11 flex-shrink-0 rounded-lg object-cover ring-1 ring-white/[0.06]">
                         @endif
                         <div class="min-w-0 flex-1">
                             <div class="flex items-center gap-2">
-                                <a href="{{ route('user.profile', $activity->user_id) }}" class="text-sm font-semibold text-amber-400 hover:underline" wire:navigate>
+                                <a href="{{ route('user.profile', $activity->user_id) }}" class="text-sm font-semibold text-emerald-400 hover:underline" wire:navigate>
                                     {{ $activity->user->name }}
                                 </a>
                                 <span class="text-sm text-zinc-400">{{ $activity->description }}</span>
@@ -84,7 +98,7 @@ class extends Component
                             @if($activity->title)
                                 @if($activity->tmdb_id && $activity->media_type)
                                     <a href="{{ route($activity->media_type === 'movie' ? 'movies.detail' : 'tv.detail', $activity->tmdb_id) }}"
-                                       class="mt-1 block text-sm font-medium text-zinc-200 hover:text-amber-400" wire:navigate>
+                                       class="mt-1 block text-sm font-medium text-zinc-200 transition hover:text-amber-400" wire:navigate>
                                         {{ $activity->title }}
                                     </a>
                                 @else
@@ -111,6 +125,4 @@ class extends Component
             </div>
         @endif
     </div>
-
-    <div class="pb-16"></div>
 </div>

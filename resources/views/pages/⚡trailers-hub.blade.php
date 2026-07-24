@@ -60,34 +60,38 @@ class extends Component
 ?>
 
 <div>
-    <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <h1 class="mb-6 text-3xl font-bold">Trailers</h1>
+    {{-- Header --}}
+    <div class="relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-b from-red-950/20 via-zinc-950/80 to-zinc-950"></div>
+        <div class="relative mx-auto max-w-7xl px-4 pb-8 pt-12 sm:px-6 lg:px-8">
+            <div class="mb-2 flex items-center gap-3">
+                <span class="h-6 w-1 rounded-full bg-red-500"></span>
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-red-400/80">Watch</p>
+            </div>
+            <h1 class="text-4xl font-bold tracking-tight md:text-5xl">Trailers</h1>
+            <p class="mt-2 text-sm text-zinc-400">Watch the latest movie trailers and teasers</p>
 
-        {{-- Tabs --}}
-        <div class="mb-8 flex gap-2">
-            <button wire:click="$set('tab', 'upcoming')"
-                    class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $tab === 'upcoming' ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700' }}">
-                Upcoming
-            </button>
-            <button wire:click="$set('tab', 'now_playing')"
-                    class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $tab === 'now_playing' ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700' }}">
-                Now Playing
-            </button>
-            <button wire:click="$set('tab', 'popular')"
-                    class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $tab === 'popular' ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700' }}">
-                Popular
-            </button>
+            <div class="mt-8 flex gap-2">
+                @foreach(['upcoming' => 'Upcoming', 'now_playing' => 'Now Playing', 'popular' => 'Popular'] as $key => $label)
+                    <button wire:click="$set('tab', '{{ $key }}')"
+                            class="whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-medium transition {{ $tab === $key ? 'bg-red-600 text-white shadow-lg shadow-red-600/20' : 'border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.12] hover:bg-white/[0.06] hover:text-white' }}">
+                        {{ $label }}
+                    </button>
+                @endforeach
+            </div>
         </div>
+    </div>
 
+    <div class="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
         {{-- Trailer Player Modal --}}
         @if($activeTrailer)
-            <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4" wire:click.self="closeTrailer">
+            <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm" wire:click.self="closeTrailer">
                 <div class="w-full max-w-4xl">
-                    <button wire:click="closeTrailer" class="mb-4 ml-auto flex items-center gap-1 text-sm text-zinc-400 transition hover:text-white">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+                    <button wire:click="closeTrailer" class="mb-4 ml-auto flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.05] px-4 py-2 text-sm text-zinc-300 transition hover:border-white/[0.15] hover:text-white">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
                         Close
                     </button>
-                    <div class="aspect-video overflow-hidden rounded-xl bg-zinc-900">
+                    <div class="aspect-video overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-white/[0.06]">
                         <iframe
                             src="https://www.youtube.com/embed/{{ $activeTrailer }}?autoplay=1"
                             class="h-full w-full"
@@ -104,41 +108,41 @@ class extends Component
         @if(count($trailersWithMovies) > 0)
             <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
                 @foreach($trailersWithMovies as $item)
-                    <div class="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50">
-                        <button wire:click="playTrailer('{{ $item['trailer']['key'] }}')" class="group relative block w-full">
+                    <div class="group overflow-hidden rounded-2xl border border-white/[0.06] bg-white/[0.02] transition hover:border-white/[0.12]">
+                        <button wire:click="playTrailer('{{ $item['trailer']['key'] }}')" class="relative block w-full">
                             <div class="aspect-video bg-zinc-800">
                                 <img src="https://img.youtube.com/vi/{{ $item['trailer']['key'] }}/hqdefault.jpg" alt=""
-                                     class="h-full w-full object-cover" loading="lazy">
+                                     class="h-full w-full object-cover transition duration-500 group-hover:scale-105" loading="lazy">
                             </div>
-                            <div class="absolute inset-0 flex items-center justify-center bg-black/30 transition group-hover:bg-black/50">
-                                <div class="flex size-14 items-center justify-center rounded-full bg-amber-600/90 text-white shadow-lg transition group-hover:scale-110">
+                            <div class="absolute inset-0 flex items-center justify-center bg-black/30 transition group-hover:bg-black/40">
+                                <div class="flex size-14 items-center justify-center rounded-full bg-red-600/90 text-white shadow-lg shadow-red-600/30 transition group-hover:scale-110">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="size-6 translate-x-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                 </div>
                             </div>
                         </button>
                         <div class="p-4">
-                            <a href="{{ route('movies.detail', $item['movie']['id']) }}" class="font-medium text-zinc-200 transition hover:text-amber-400" wire:navigate>
+                            <a href="{{ route('movies.detail', $item['movie']['id']) }}" class="font-medium text-zinc-200 transition hover:text-red-400" wire:navigate>
                                 {{ $item['movie']['title'] ?? 'Untitled' }}
                             </a>
-                            <div class="mt-1 flex items-center gap-2 text-xs text-zinc-500">
+                            <div class="mt-1.5 flex items-center gap-2 text-xs text-zinc-500">
                                 @if($item['release_date'])
                                     @php $releaseDate = \Carbon\Carbon::parse($item['release_date']); @endphp
                                     @if($releaseDate->isFuture())
-                                        <span class="rounded bg-amber-600/10 px-2 py-0.5 text-amber-400">{{ $releaseDate->diffForHumans() }}</span>
+                                        <span class="rounded-lg bg-amber-500/10 px-2 py-0.5 text-amber-400">{{ $releaseDate->diffForHumans() }}</span>
                                     @else
                                         <span>{{ $releaseDate->format('M d, Y') }}</span>
                                     @endif
                                 @endif
-                                <span>{{ $item['trailer']['type'] }}</span>
+                                <span class="rounded-lg bg-white/[0.04] px-2 py-0.5">{{ $item['trailer']['type'] }}</span>
                             </div>
                         </div>
                     </div>
                 @endforeach
             </div>
         @else
-            <p class="text-sm text-zinc-500">No trailers found for this category.</p>
+            <div class="rounded-2xl border border-white/[0.06] bg-white/[0.02] py-20 text-center">
+                <p class="text-zinc-500">No trailers found for this category.</p>
+            </div>
         @endif
     </div>
-
-    <div class="pb-16"></div>
 </div>

@@ -44,24 +44,29 @@ class extends Component
 ?>
 
 <div>
-    <div class="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
-        <h1 class="mb-6 text-3xl font-bold">Leaderboard</h1>
+    {{-- Header --}}
+    <div class="relative overflow-hidden">
+        <div class="absolute inset-0 bg-gradient-to-b from-amber-950/20 via-zinc-950/80 to-zinc-950"></div>
+        <div class="relative mx-auto max-w-3xl px-4 pb-8 pt-12 sm:px-6 lg:px-8">
+            <div class="mb-2 flex items-center gap-3">
+                <span class="h-6 w-1 rounded-full bg-amber-500"></span>
+                <p class="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400/80">Community</p>
+            </div>
+            <h1 class="text-4xl font-bold tracking-tight md:text-5xl">Leaderboard</h1>
+            <p class="mt-2 text-sm text-zinc-400">Top contributors in the community</p>
 
-        <div class="mb-6 flex gap-2">
-            <button wire:click="$set('tab', 'reviewers')"
-                    class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $tab === 'reviewers' ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700' }}">
-                Top Reviewers
-            </button>
-            <button wire:click="$set('tab', 'watchers')"
-                    class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $tab === 'watchers' ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700' }}">
-                Most Active
-            </button>
-            <button wire:click="$set('tab', 'collectors')"
-                    class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $tab === 'collectors' ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700' }}">
-                Top Collectors
-            </button>
+            <div class="mt-8 flex gap-2">
+                @foreach(['reviewers' => 'Top Reviewers', 'watchers' => 'Most Active', 'collectors' => 'Top Collectors'] as $key => $label)
+                    <button wire:click="$set('tab', '{{ $key }}')"
+                            class="whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-medium transition {{ $tab === $key ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.12] hover:bg-white/[0.06] hover:text-white' }}">
+                        {{ $label }}
+                    </button>
+                @endforeach
+            </div>
         </div>
+    </div>
 
+    <div class="mx-auto max-w-3xl px-4 pb-16 sm:px-6 lg:px-8">
         @php
             $list = match($tab) {
                 'watchers' => $mostActive,
@@ -83,9 +88,9 @@ class extends Component
         <div class="space-y-2">
             @foreach($list as $index => $user)
                 <a href="{{ route('user.profile', $user->id) }}"
-                   class="flex items-center gap-4 rounded-xl border border-zinc-800 bg-zinc-900/50 p-4 transition hover:border-zinc-700" wire:navigate>
-                    <span class="flex size-8 shrink-0 items-center justify-center rounded-full text-sm font-bold
-                        {{ $index === 0 ? 'bg-amber-600 text-white' : ($index === 1 ? 'bg-zinc-500 text-white' : ($index === 2 ? 'bg-amber-800 text-white' : 'bg-zinc-800 text-zinc-400')) }}">
+                   class="flex items-center gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 transition hover:border-white/[0.12] hover:bg-white/[0.04]" wire:navigate>
+                    <span class="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold
+                        {{ $index === 0 ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30' : ($index === 1 ? 'bg-zinc-400 text-white' : ($index === 2 ? 'bg-amber-800 text-white' : 'bg-white/[0.06] text-zinc-400')) }}">
                         {{ $index + 1 }}
                     </span>
                     <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-amber-600/20 text-sm font-bold text-amber-400">
@@ -96,7 +101,7 @@ class extends Component
                         <p class="text-xs text-zinc-500">Joined {{ $user->created_at->format('M Y') }}</p>
                     </div>
                     <div class="text-right">
-                        <p class="text-lg font-bold text-amber-400">{{ $user->$countField }}</p>
+                        <p class="text-lg font-bold tabular-nums text-amber-400">{{ $user->$countField }}</p>
                         <p class="text-xs text-zinc-500">{{ $label }}</p>
                     </div>
                 </a>
@@ -104,9 +109,9 @@ class extends Component
         </div>
 
         @if($list->isEmpty())
-            <p class="text-center text-sm text-zinc-500">No data yet. Be the first!</p>
+            <div class="rounded-2xl border border-white/[0.06] bg-white/[0.02] py-20 text-center">
+                <p class="text-zinc-500">No data yet. Be the first!</p>
+            </div>
         @endif
     </div>
-
-    <div class="pb-16"></div>
 </div>

@@ -79,9 +79,15 @@ test('user can save preferences', function () {
     Livewire\Livewire::test('pages::settings.preferences')
         ->set('preferredType', 'movie')
         ->set('contentLanguage', 'es')
+        ->set('streamQuality', '1080')
+        ->set('cinesrcAutoskip', true)
+        ->set('cinesrcAutonext', false)
         ->call('savePreferences');
 
     $user->refresh();
     expect($user->preferences['preferred_type'])->toBe('movie');
     expect($user->preferences['content_language'])->toBe('es');
+    expect($user->preferences['stream_quality'])->toBe('1080');
+    expect($user->preferences['cinesrc_autoskip'])->toBeTrue();
+    expect($user->preferences['cinesrc_autonext'])->toBeFalse();
 });

@@ -6,7 +6,7 @@ use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new
-#[Layout('layouts.guest')]
+#[Layout('layouts.app')]
 #[Title('Preferences')]
 class extends Component
 {
@@ -24,6 +24,12 @@ class extends Component
 
     public bool $showAdultContent = false;
 
+    public string $streamQuality = '';
+
+    public bool $cinesrcAutoskip = false;
+
+    public bool $cinesrcAutonext = true;
+
     public string $dateOfBirth = '';
 
     public function mount(): void
@@ -37,6 +43,9 @@ class extends Component
         $this->emailNotifications = $prefs['email_notifications'] ?? true;
         $this->autoplayTrailers = $prefs['autoplay_trailers'] ?? true;
         $this->showAdultContent = $prefs['show_adult_content'] ?? false;
+        $this->streamQuality = $prefs['stream_quality'] ?? '';
+        $this->cinesrcAutoskip = (bool) ($prefs['cinesrc_autoskip'] ?? false);
+        $this->cinesrcAutonext = (bool) ($prefs['cinesrc_autonext'] ?? true);
         $this->dateOfBirth = $user->date_of_birth?->format('Y-m-d') ?? '';
     }
 
@@ -74,6 +83,9 @@ class extends Component
                 'email_notifications' => $this->emailNotifications,
                 'autoplay_trailers' => $this->autoplayTrailers,
                 'show_adult_content' => $this->showAdultContent,
+                'stream_quality' => $this->streamQuality,
+                'cinesrc_autoskip' => $this->cinesrcAutoskip,
+                'cinesrc_autonext' => $this->cinesrcAutonext,
             ],
         ]);
 
@@ -101,7 +113,7 @@ class extends Component
     public function with(): array
     {
         $sources = collect(config('sources.providers', []))
-            ->filter(fn (array $p): bool => ($p['driver'] ?? '') === 'embed')
+            ->filter(fn (array $p): bool => in_array($p['driver'] ?? '', ['embed', 'cinesrc'], true))
             ->values()
             ->toArray();
 
@@ -181,6 +193,26 @@ class extends Component
                     <flux:select.option value="se">Sweden</flux:select.option>
                     <flux:select.option value="nl">Netherlands</flux:select.option>
                 </flux:select>
+            </div>
+
+            {{-- Preferred stream quality (CineSrc) --}}
+            <div>
+                <flux:select wire:model="streamQuality" :label="__('Preferred Stream Quality')" :description="__('Passed to CineSrc when available (embed player)')">
+                    <flux:select.option value="">{{ __('Auto') }}</flux:select.option>
+                    <flux:select.option value="1080">1080p</flux:select.option>
+                    <flux:select.option value="720">720p</flux:select.option>
+                    <flux:select.option value="480">480p</flux:select.option>
+                </flux:select>
+            </div>
+
+            {{-- CineSrc playback --}}
+            <div class="space-y-4 rounded-lg border border-zinc-700 bg-zinc-900/50 p-5">
+                <div>
+                    <h3 class="text-sm font-semibold text-white">{{ __('CineSrc Player') }}</h3>
+                    <p class="mt-1 text-xs text-zinc-500">{{ __('Controls for the CineSrc embed when it is the active server.') }}</p>
+                </div>
+                <flux:switch wire:model="cinesrcAutonext" :label="__('Auto-play next episode')" :description="__('Advance to the next episode when the current one ends')" />
+                <flux:switch wire:model="cinesrcAutoskip" :label="__('Auto-skip intros')" :description="__('Skip intro/recap segments when CineSrc detects them')" />
             </div>
 
             {{-- Notification preferences --}}

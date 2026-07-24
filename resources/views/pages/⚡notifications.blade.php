@@ -1,19 +1,20 @@
 <?php
 
 use App\Models\UserNotification;
+use Flux\Flux;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new
-#[Layout('layouts.guest')]
+#[Layout('layouts.app')]
 #[Title('Notifications — StreamVault')]
 class extends Component
 {
     public function markAsRead(int $id): void
     {
-        $notification = UserNotification::where('user_id', auth()->id())->findOrFail($id);
-        $notification->markAsRead();
+        UserNotification::where('user_id', auth()->id())->findOrFail($id)->markAsRead();
+        Flux::toast(variant: 'success', text: 'Notification marked as read.');
     }
 
     public function markAllAsRead(): void
@@ -21,11 +22,13 @@ class extends Component
         UserNotification::where('user_id', auth()->id())
             ->whereNull('read_at')
             ->update(['read_at' => now()]);
+        Flux::toast(variant: 'success', text: 'All notifications marked as read.');
     }
 
     public function deleteNotification(int $id): void
     {
         UserNotification::where('user_id', auth()->id())->findOrFail($id)->delete();
+        Flux::toast(text: 'Notification deleted.');
     }
 
     public function with(): array

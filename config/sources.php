@@ -1,12 +1,33 @@
 <?php
 
 return [
+    /*
+    |--------------------------------------------------------------------------
+    | CineSrc Integration
+    |--------------------------------------------------------------------------
+    |
+    | Official embed docs: https://cinesrc.st/docs
+    | Optional resolver: set CINESRC_RESOLVER_URL to a cinesrc-stream-resolver instance
+    | for direct HLS playback (e.g. http://127.0.0.1:8787).
+    |
+    */
+    'cinesrc' => [
+        'base_url' => env('CINESRC_BASE_URL', 'https://cinesrc.st'),
+        'resolver_url' => env('CINESRC_RESOLVER_URL'),
+        'resolver_timeout' => (int) env('CINESRC_RESOLVER_TIMEOUT', 45),
+        'color' => env('CINESRC_COLOR', '#d97706'),
+        'seek' => (int) env('CINESRC_SEEK', 10),
+        'autoplay' => filter_var(env('CINESRC_AUTOPLAY', true), FILTER_VALIDATE_BOOL),
+        'autonext' => filter_var(env('CINESRC_AUTONEXT', true), FILTER_VALIDATE_BOOL),
+        'autoskip' => filter_var(env('CINESRC_AUTOSKIP', false), FILTER_VALIDATE_BOOL),
+        'default_quality' => env('CINESRC_DEFAULT_QUALITY'),
+        'back' => env('CINESRC_BACK', 'close'),
+    ],
+
     'providers' => [
         [
             'name' => 'CineSrc',
-            'driver' => 'embed',
-            'movie_url' => env('CINESRC_MOVIE_URL', 'https://cinesrc.st/embed/movie/{id}?color=%23d97706&seek=10&autoplay=true'),
-            'tv_url' => env('CINESRC_TV_URL', 'https://cinesrc.st/embed/tv/{id}?s={season}&e={episode}&color=%23d97706&seek=10&autoplay=true'),
+            'driver' => 'cinesrc',
             'supports_postmessage' => true,
         ],
         [

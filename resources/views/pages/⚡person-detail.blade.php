@@ -41,6 +41,8 @@ class extends Component
             return $item['release_date'] ?? $item['first_air_date'] ?? '0000';
         })->values()->take(50);
 
+        $backdropCredit = $credits->first(fn (array $c) => ! empty($c['backdrop_path']));
+
         return [
             'person' => $person,
             'knownFor' => $knownFor,
@@ -48,6 +50,7 @@ class extends Component
             'totalCredits' => $credits->count(),
             'movieCount' => $credits->where('media_type', 'movie')->count(),
             'tvCount' => $credits->where('media_type', 'tv')->count(),
+            'backdrop' => $backdropCredit['backdrop_path'] ?? null,
         ];
     }
 };
@@ -56,11 +59,20 @@ class extends Component
 <div>
     @php $name = $person['name'] ?? 'Unknown'; @endphp
 
-    <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div class="flex flex-col gap-8 md:flex-row">
+    {{-- Cinematic Backdrop --}}
+    <div class="relative h-[40vh] min-h-[300px] w-full overflow-hidden">
+        @if($backdrop)
+            <img src="{{ app(Tmdb::class)->backdropUrl($backdrop) }}" alt="" class="absolute inset-0 h-full w-full object-cover opacity-40">
+        @endif
+        <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/70 to-zinc-950/30"></div>
+        <div class="absolute inset-0 bg-gradient-to-r from-zinc-950/80 via-transparent to-transparent"></div>
+    </div>
+
+    <div class="mx-auto -mt-44 max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        <div class="relative flex flex-col gap-8 md:flex-row">
             {{-- Profile photo --}}
             <div class="w-48 shrink-0 md:w-64">
-                <div class="aspect-[2/3] overflow-hidden rounded-xl bg-zinc-800 shadow-2xl">
+                <div class="aspect-[2/3] overflow-hidden rounded-2xl bg-zinc-800 shadow-2xl ring-1 ring-white/[0.08]">
                     @if(!empty($person['profile_path']))
                         <img src="{{ app(Tmdb::class)->imageUrl($person['profile_path']) }}" alt="{{ $name }}" class="h-full w-full object-cover">
                     @else
@@ -71,7 +83,7 @@ class extends Component
                 </div>
 
                 {{-- Personal info --}}
-                <div class="mt-6 space-y-3">
+                <div class="mt-6 space-y-3 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4">
                     @if(!empty($person['known_for_department']))
                         <div>
                             <p class="text-xs font-medium text-zinc-500">Known For</p>
@@ -98,24 +110,27 @@ class extends Component
                     @endif
                     <div>
                         <p class="text-xs font-medium text-zinc-500">Credits</p>
-                        <p class="text-sm text-zinc-300">{{ $totalCredits }} titles</p>
+                        <p class="text-sm font-semibold text-amber-400">{{ $totalCredits }} titles</p>
                     </div>
                 </div>
             </div>
 
             {{-- Main content --}}
-            <div class="flex-1">
-                <h1 class="mb-4 text-3xl font-bold md:text-4xl">{{ $name }}</h1>
+            <div class="flex-1 pt-4">
+                <h1 class="mb-4 text-3xl font-bold tracking-tight md:text-4xl lg:text-5xl">{{ $name }}</h1>
 
                 @if(!empty($person['biography']))
                     <div class="mb-8" x-data="{ expanded: false }">
-                        <h2 class="mb-2 text-lg font-semibold">Biography</h2>
+                        <h2 class="mb-3 flex items-center gap-2 text-lg font-bold">
+                            <span class="h-5 w-1 rounded-full bg-pink-500"></span>
+                            Biography
+                        </h2>
                         <div class="relative">
                             <p class="leading-relaxed text-zinc-400" :class="expanded || '{{ Str::length($person['biography']) }}' < 500 ? '' : 'line-clamp-4'">
                                 {{ $person['biography'] }}
                             </p>
                             @if(Str::length($person['biography']) > 500)
-                                <button x-on:click="expanded = !expanded" class="mt-2 text-sm font-medium text-amber-400 hover:text-amber-300"
+                                <button x-on:click="expanded = !expanded" class="mt-2 text-sm font-medium text-pink-400 transition hover:text-pink-300"
                                         x-text="expanded ? 'Show less' : 'Read more'"></button>
                             @endif
                         </div>
@@ -125,21 +140,16 @@ class extends Component
                 {{-- Known For --}}
                 @if($knownFor->count() > 0)
                     <section class="mb-8">
-                        <h2 class="mb-4 text-lg font-semibold">Known For</h2>
+                        <h2 class="mb-4 flex items-center gap-2 text-lg font-bold">
+                            <span class="h-5 w-1 rounded-full bg-amber-500"></span>
+                            Known For
+                        </h2>
                         <div class="scrollbar-hide -mx-4 flex gap-4 overflow-x-auto px-4 pb-2">
                             @foreach($knownFor as $credit)
                                 @php $creditType = $credit['media_type'] ?? 'movie'; @endphp
-                                <a href="{{ route($creditType === 'movie' ? 'movies.detail' : 'tv.detail', ['tmdbId' => $credit['id']]) }}"
-                                   class="group w-28 shrink-0 sm:w-32" wire:navigate>
-                                    <div class="aspect-[2/3] overflow-hidden rounded-lg bg-zinc-800">
-                                        @if(!empty($credit['poster_path']))
-                                            <img src="{{ app(Tmdb::class)->imageUrl($credit['poster_path'], 'w185') }}"
-                                                 alt="{{ $credit['title'] ?? $credit['name'] ?? '' }}"
-                                                 class="h-full w-full object-cover transition group-hover:scale-105" loading="lazy">
-                                        @endif
-                                    </div>
-                                    <p class="mt-2 text-xs font-medium text-zinc-300 group-hover:text-amber-400">{{ Str::limit($credit['title'] ?? $credit['name'] ?? '', 25) }}</p>
-                                </a>
+                                <div class="w-28 shrink-0 sm:w-32">
+                                    @include('partials.media-card', ['item' => $credit, 'type' => $creditType])
+                                </div>
                             @endforeach
                         </div>
                     </section>
@@ -147,18 +157,21 @@ class extends Component
 
                 {{-- Filmography --}}
                 <section>
-                    <h2 class="mb-4 text-lg font-semibold">Filmography</h2>
+                    <h2 class="mb-4 flex items-center gap-2 text-lg font-bold">
+                        <span class="h-5 w-1 rounded-full bg-blue-500"></span>
+                        Filmography
+                    </h2>
                     <div class="mb-4 flex gap-2">
                         <button wire:click="$set('filmographyTab', 'all')"
-                                class="rounded-lg px-3 py-1.5 text-sm font-medium transition {{ $filmographyTab === 'all' ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700' }}">
+                                class="rounded-xl px-4 py-2 text-sm font-medium transition {{ $filmographyTab === 'all' ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.12] hover:text-white' }}">
                             All ({{ $totalCredits }})
                         </button>
                         <button wire:click="$set('filmographyTab', 'movies')"
-                                class="rounded-lg px-3 py-1.5 text-sm font-medium transition {{ $filmographyTab === 'movies' ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700' }}">
+                                class="rounded-xl px-4 py-2 text-sm font-medium transition {{ $filmographyTab === 'movies' ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.12] hover:text-white' }}">
                             Movies ({{ $movieCount }})
                         </button>
                         <button wire:click="$set('filmographyTab', 'tv')"
-                                class="rounded-lg px-3 py-1.5 text-sm font-medium transition {{ $filmographyTab === 'tv' ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700' }}">
+                                class="rounded-xl px-4 py-2 text-sm font-medium transition {{ $filmographyTab === 'tv' ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.12] hover:text-white' }}">
                             TV ({{ $tvCount }})
                         </button>
                     </div>
@@ -173,9 +186,9 @@ class extends Component
                                 $creditRole = $credit['character'] ?? $credit['job'] ?? '';
                             @endphp
                             <a href="{{ route($creditType === 'movie' ? 'movies.detail' : 'tv.detail', ['tmdbId' => $credit['id']]) }}"
-                               class="flex items-center gap-4 rounded-lg bg-zinc-900 p-3 transition hover:bg-zinc-800" wire:navigate>
-                                <span class="w-12 shrink-0 text-center text-sm font-medium text-zinc-500">{{ $creditYear }}</span>
-                                <div class="h-12 w-8 shrink-0 overflow-hidden rounded bg-zinc-800">
+                               class="flex items-center gap-4 rounded-xl border border-white/[0.04] bg-white/[0.02] p-3 transition hover:border-white/[0.1] hover:bg-white/[0.04]" wire:navigate>
+                                <span class="w-12 shrink-0 text-center text-sm font-medium tabular-nums text-zinc-500">{{ $creditYear }}</span>
+                                <div class="h-12 w-8 shrink-0 overflow-hidden rounded-lg bg-zinc-800 ring-1 ring-white/[0.06]">
                                     @if(!empty($credit['poster_path']))
                                         <img src="{{ app(Tmdb::class)->imageUrl($credit['poster_path'], 'w92') }}" alt="" class="h-full w-full object-cover" loading="lazy">
                                     @endif
@@ -186,7 +199,7 @@ class extends Component
                                         <p class="text-xs text-zinc-500">{{ $creditRole }}</p>
                                     @endif
                                 </div>
-                                <span class="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-500">{{ ucfirst($creditType) }}</span>
+                                <span class="rounded-lg bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-500">{{ ucfirst($creditType) }}</span>
                             </a>
                         @endforeach
                     </div>
@@ -194,6 +207,4 @@ class extends Component
             </div>
         </div>
     </div>
-
-    <div class="pb-16"></div>
 </div>

@@ -7,7 +7,7 @@ use Livewire\Attributes\Validate;
 use Livewire\Component;
 
 new
-#[Layout('layouts.guest')]
+#[Layout('layouts.app')]
 #[Title('Watch Parties — StreamVault')]
 class extends Component
 {
@@ -67,7 +67,7 @@ class extends Component
     public function with(): array
     {
         $myParties = auth()->check()
-            ? WatchParty::where('host_id', auth()->id())->where('is_active', true)->latest()->get()
+            ? WatchParty::with('host')->where('host_id', auth()->id())->where('is_active', true)->latest()->get()
             : collect();
 
         return [
@@ -78,51 +78,29 @@ class extends Component
 ?>
 
 <div>
-    <div class="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
-        <h1 class="mb-6 text-2xl font-bold">Watch Parties</h1>
+    <div class="mx-auto max-w-3xl">
+        <div class="mb-6 flex items-center gap-3">
+            <h1 class="text-2xl font-bold text-white">Watch Parties</h1>
+            <span class="size-2.5 rounded-full bg-red-500 shadow-sm shadow-red-500/50"></span>
+            <div class="h-px flex-1 bg-gradient-to-r from-white/[0.06] to-transparent"></div>
+        </div>
 
         @if($joinedParty)
-            {{-- Active Party View --}}
-            <div class="mb-8 rounded-xl border border-amber-800/30 bg-amber-900/10 p-6">
-                <div class="flex items-start gap-4">
-                    @if($joinedParty->poster_path)
-                        <img src="https://image.tmdb.org/t/p/w154{{ $joinedParty->poster_path }}"
-                             alt="" class="h-32 w-22 flex-shrink-0 rounded-lg object-cover">
-                    @endif
-                    <div class="flex-1">
-                        <h2 class="text-xl font-bold text-amber-400">{{ $joinedParty->title }}</h2>
-                        <p class="mt-1 text-sm text-zinc-400">Hosted by {{ $joinedParty->host->name }}</p>
-                        <div class="mt-4 flex items-center gap-3">
-                            <div class="rounded-lg bg-zinc-800 px-4 py-2">
-                                <p class="text-xs text-zinc-500">Share Code</p>
-                                <p class="font-mono text-lg font-bold tracking-wider text-amber-400">{{ $joinedParty->code }}</p>
-                            </div>
-                            <a href="{{ route('watch', [$joinedParty->media_type, $joinedParty->tmdb_id]) }}"
-                               class="rounded-lg bg-amber-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-amber-500" wire:navigate>
-                                Start Watching
-                            </a>
-                        </div>
-                        @if($joinedParty->host_id === auth()->id())
-                            <button wire:click="endParty({{ $joinedParty->id }})"
-                                    class="mt-3 text-sm text-red-400 hover:text-red-300">
-                                End Party
-                            </button>
-                        @endif
-                    </div>
-                </div>
+            <div class="mb-8">
+                @include('partials.party-card', ['party' => $joinedParty, 'variant' => 'full'])
             </div>
         @endif
 
         <div class="grid gap-6 sm:grid-cols-2">
             {{-- Join a Party --}}
-            <div class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6">
-                <h2 class="mb-4 text-lg font-semibold">Join a Party</h2>
+            <div class="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
+                <h2 class="mb-4 text-lg font-semibold text-white">Join a Party</h2>
                 <p class="mb-4 text-sm text-zinc-400">Enter the 8-character code shared by the host.</p>
                 <div class="flex gap-2">
                     <input wire:model="joinCode" type="text" maxlength="8" placeholder="Enter code"
-                           class="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 font-mono uppercase tracking-wider text-zinc-200 placeholder-zinc-600 focus:border-amber-600 focus:outline-none">
+                           class="flex-1 rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-2 font-mono uppercase tracking-wider text-zinc-200 placeholder-zinc-600 outline-none transition focus:border-red-500/30 focus:bg-white/[0.06]">
                     <button wire:click="joinParty"
-                            class="rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-500">
+                            class="rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-500">
                         Join
                     </button>
                 </div>
@@ -133,21 +111,21 @@ class extends Component
 
             {{-- Create a Party --}}
             @auth
-                <div class="rounded-xl border border-zinc-800 bg-zinc-900/50 p-6">
-                    <h2 class="mb-4 text-lg font-semibold">Create a Party</h2>
+                <div class="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
+                    <h2 class="mb-4 text-lg font-semibold text-white">Create a Party</h2>
                     <p class="mb-4 text-sm text-zinc-400">Start a watch party and invite friends with a code.</p>
                     <div class="space-y-3">
                         <input wire:model="newTitle" type="text" placeholder="Party name (e.g. Friday Movie Night)"
-                               class="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:border-amber-600 focus:outline-none">
+                               class="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-2 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition focus:border-red-500/30 focus:bg-white/[0.06]">
                         <input wire:model="newTmdbId" type="number" placeholder="TMDB ID"
-                               class="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm text-zinc-200 placeholder-zinc-600 focus:border-amber-600 focus:outline-none">
+                               class="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-2 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition focus:border-red-500/30 focus:bg-white/[0.06]">
                         <select wire:model="newMediaType"
-                                class="w-full rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm text-zinc-200 focus:border-amber-600 focus:outline-none">
+                                class="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-2 text-sm text-zinc-200 outline-none transition focus:border-red-500/30 focus:bg-white/[0.06]">
                             <option value="movie">Movie</option>
                             <option value="tv">TV Show</option>
                         </select>
                         <button wire:click="createParty"
-                                class="w-full rounded-lg bg-amber-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-amber-500">
+                                class="w-full rounded-lg bg-red-600 px-4 py-2 text-sm font-bold text-white transition hover:bg-red-500">
                             Create Party
                         </button>
                     </div>
@@ -161,20 +139,14 @@ class extends Component
         {{-- My Active Parties --}}
         @if($myParties->isNotEmpty())
             <section class="mt-8">
-                <h2 class="mb-4 text-lg font-semibold">Your Active Parties</h2>
+                <div class="mb-4 flex items-center gap-3">
+                    <h2 class="text-lg font-semibold text-white">Your Active Parties</h2>
+                    <span class="size-2 rounded-full bg-red-500 shadow-sm shadow-red-500/50"></span>
+                    <div class="h-px flex-1 bg-gradient-to-r from-white/[0.06] to-transparent"></div>
+                </div>
                 <div class="space-y-3">
                     @foreach($myParties as $party)
-                        <div class="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900/50 p-4">
-                            <div>
-                                <p class="font-medium text-zinc-200">{{ $party->title }}</p>
-                                <p class="text-xs text-zinc-500">Code: <span class="font-mono font-bold text-amber-400">{{ $party->code }}</span></p>
-                            </div>
-                            <div class="flex items-center gap-3">
-                                <a href="{{ route('watch', [$party->media_type, $party->tmdb_id]) }}"
-                                   class="text-sm text-amber-400 hover:underline" wire:navigate>Watch</a>
-                                <button wire:click="endParty({{ $party->id }})" class="text-sm text-red-400 hover:text-red-300">End</button>
-                            </div>
-                        </div>
+                        @include('partials.party-card', ['party' => $party, 'variant' => 'list'])
                     @endforeach
                 </div>
             </section>

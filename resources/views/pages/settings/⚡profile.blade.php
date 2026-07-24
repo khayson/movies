@@ -11,7 +11,7 @@ use Livewire\Attributes\Title;
 use Livewire\Component;
 
 new
-#[Layout('layouts.guest')]
+#[Layout('layouts.app')]
 #[Title('Profile settings')]
 class extends Component {
     use ProfileValidationRules;

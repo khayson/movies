@@ -8,6 +8,7 @@ class SourceResolver
 {
     /** @var array<string, int> Provider reliability scores (higher = better) */
     private const PROVIDER_SCORES = [
+        'CineSrc Direct' => 98,
         'CineSrc' => 95,
         'VidCore' => 85,
         'VidPhantom' => 80,
@@ -22,20 +23,27 @@ class SourceResolver
         'VikingEmbed' => 60,
     ];
 
+    /** @var array<int, string> */
+    private const PLAYABLE_TYPES = ['embed', 'hls'];
+
     /**
-     * @return array<int, array{type: string, url: string, quality: string, provider: string}>
+     * @return array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool}>
      */
     public function resolve(int $tmdbId, string $mediaType = 'movie', ?int $season = null, ?int $episode = null): array
     {
         $cacheKey = "sources.{$mediaType}.{$tmdbId}.{$season}.{$episode}";
 
-        /** @var array<int, array{type: string, url: string, quality: string, provider: string}> */
-        return Cache::remember($cacheKey, now()->addMinutes(config('sources.cache_ttl')), function () use ($tmdbId, $mediaType, $season, $episode): array {
-            /** @var array<int, array{driver: string, name?: string, movie_url?: string, tv_url?: string}> $providers */
+        /** @var array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool}> */
+        $sources = Cache::remember($cacheKey, now()->addMinutes(config('sources.cache_ttl')), function () use ($tmdbId, $mediaType, $season, $episode): array {
+            /** @var array<int, array{driver: string, name?: string, movie_url?: string, tv_url?: string, supports_postmessage?: bool}> $providers */
             $providers = config('sources.providers', []);
             $sources = [];
 
             foreach ($providers as $provider) {
+                if (($provider['driver'] ?? '') === 'cinesrc') {
+                    continue;
+                }
+
                 $resolved = match ($provider['driver']) {
                     'embed' => $this->resolveEmbed($tmdbId, $mediaType, $provider, $season, $episode),
                     'trailer' => $this->resolveTrailer($tmdbId, $mediaType),
@@ -47,6 +55,8 @@ class SourceResolver
 
             return $sources;
         });
+
+        return [...$this->resolveCineSrc($tmdbId, $mediaType, $season, $episode), ...$sources];
     }
 
     /**
@@ -60,12 +70,16 @@ class SourceResolver
         }
 
         $userLastServer = null;
+        $defaultSource = null;
+
         if (auth()->check()) {
-            $history = auth()->user()->watchHistory()
+            $user = auth()->user();
+            $history = $user->watchHistory()
                 ->where('tmdb_id', $tmdbId)
                 ->where('media_type', $mediaType)
                 ->first();
             $userLastServer = $history?->last_server;
+            $defaultSource = $user->preferences['default_source'] ?? null;
         }
 
         $failedProviders = Cache::get('failed_providers', []);
@@ -74,7 +88,7 @@ class SourceResolver
         $bestScore = -1;
 
         foreach ($sources as $i => $source) {
-            if ($source['type'] !== 'embed') {
+            if (! in_array($source['type'], self::PLAYABLE_TYPES, true)) {
                 continue;
             }
 
@@ -83,6 +97,10 @@ class SourceResolver
 
             if ($provider === $userLastServer) {
                 $score += 20;
+            }
+
+            if ($provider === $defaultSource) {
+                $score += 15;
             }
 
             if (isset($failedProviders[$provider])) {
@@ -143,6 +161,87 @@ class SourceResolver
 
             return ['embed' => $embed, 'external' => $external];
         });
+    }
+
+    /**
+     * @return array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool}>
+     */
+    private function resolveCineSrc(int $tmdbId, string $mediaType, ?int $season, ?int $episode): array
+    {
+        $options = $this->cineSrcOptions($tmdbId, $mediaType);
+
+        $embedUrl = app(CineSrcEmbed::class)->buildUrl($tmdbId, $mediaType, $season, $episode, $options);
+
+        $sources = [[
+            'type' => 'embed',
+            'url' => $embedUrl,
+            'quality' => is_string($options['quality'] ?? null) ? $options['quality'] : 'auto',
+            'provider' => 'CineSrc',
+            'supports_postmessage' => true,
+        ]];
+
+        $direct = app(CineSrcStreamResolver::class)->resolve($tmdbId, $mediaType, $season, $episode);
+
+        if ($direct !== null) {
+            $sources[] = [
+                'type' => 'hls',
+                'url' => $direct['url'],
+                'quality' => $direct['quality'],
+                'provider' => $direct['provider'],
+            ];
+        }
+
+        return $sources;
+    }
+
+    /**
+     * @return array{
+     *     progress_seconds?: int,
+     *     cinesrc_server_id?: string,
+     *     quality?: string,
+     *     autoskip?: bool,
+     *     autonext?: bool,
+     * }
+     */
+    private function cineSrcOptions(int $tmdbId, string $mediaType): array
+    {
+        $options = [];
+
+        if (! auth()->check()) {
+            return $options;
+        }
+
+        $user = auth()->user();
+        $prefs = $user->preferences ?? [];
+        $history = $user->watchHistory()
+            ->where('tmdb_id', $tmdbId)
+            ->where('media_type', $mediaType)
+            ->first();
+
+        if ($history !== null) {
+            if ($history->progress_seconds > 30) {
+                $options['progress_seconds'] = $history->progress_seconds;
+            }
+
+            if (is_string($history->cinesrc_server_id) && $history->cinesrc_server_id !== '') {
+                $options['cinesrc_server_id'] = $history->cinesrc_server_id;
+            }
+        }
+
+        $quality = $prefs['stream_quality'] ?? config('sources.cinesrc.default_quality');
+        if (is_string($quality) && $quality !== '') {
+            $options['quality'] = $quality;
+        }
+
+        if (array_key_exists('cinesrc_autoskip', $prefs)) {
+            $options['autoskip'] = (bool) $prefs['cinesrc_autoskip'];
+        }
+
+        if (array_key_exists('cinesrc_autonext', $prefs)) {
+            $options['autonext'] = (bool) $prefs['cinesrc_autonext'];
+        }
+
+        return $options;
     }
 
     /**

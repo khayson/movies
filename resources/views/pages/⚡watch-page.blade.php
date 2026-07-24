@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\SourceResolver;
+use App\Services\StreamingAvailability;
 use App\Services\Tmdb;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -157,6 +158,27 @@ class extends Component
         );
     }
 
+    public function saveCineSrcServer(string $sourceId): void
+    {
+        if (! auth()->check() || $sourceId === '') {
+            return;
+        }
+
+        auth()->user()->watchHistory()->updateOrCreate(
+            ['tmdb_id' => $this->tmdbId, 'media_type' => $this->type],
+            ['cinesrc_server_id' => $sourceId],
+        );
+    }
+
+    public function handleNextEpisode(int $season, int $episode): void
+    {
+        if ($this->type !== 'tv') {
+            return;
+        }
+
+        $this->selectEpisode($season, $episode);
+    }
+
     private function recordWatchHistory(): void
     {
         $tmdb = app(Tmdb::class);
@@ -184,7 +206,7 @@ class extends Component
         );
     }
 
-    public function with(SourceResolver $resolver, Tmdb $tmdb): array
+    public function with(SourceResolver $resolver, Tmdb $tmdb, StreamingAvailability $streaming): array
     {
         $details = [];
 
@@ -195,6 +217,12 @@ class extends Component
 
         $releaseDate = $details['release_date'] ?? $details['first_air_date'] ?? '';
         $isUpcoming = $releaseDate && $releaseDate > now()->toDateString();
+
+        $streamingCountry = $streaming->getUserCountry();
+        $streamingData = $streaming->getByTmdbId($this->type, $this->tmdbId, $streamingCountry);
+        $streamingOptions = $streamingData
+            ? $streaming->getStreamingOptions($streamingData, $streamingCountry)
+            : [];
 
         if ($isUpcoming) {
             $trailer = collect($details['videos']['results'] ?? [])->first(function ($v) {
@@ -212,6 +240,7 @@ class extends Component
                 'seasonData' => null,
                 'isUpcoming' => true,
                 'totalSeasons' => 1,
+                'streamingOptions' => $streamingOptions,
             ];
         }
 
@@ -238,6 +267,7 @@ class extends Component
             'seasonData' => $seasonData,
             'isUpcoming' => false,
             'totalSeasons' => $totalSeasons,
+            'streamingOptions' => $streamingOptions,
         ];
     }
 };
@@ -247,7 +277,7 @@ class extends Component
     @php
         $title = $details['title'] ?? $details['name'] ?? 'Untitled';
         $source = $sources[$activeServer] ?? $sources[0] ?? null;
-        $embedSources = collect($sources)->where('type', 'embed')->values();
+        $embedSources = collect($sources)->whereIn('type', ['embed', 'hls'])->values();
         $trailerSource = collect($sources)->firstWhere('type', 'youtube');
         $backdropPath = $details['backdrop_path'] ?? null;
         $posterPath = $details['poster_path'] ?? null;
@@ -257,6 +287,8 @@ class extends Component
         $genres = collect($details['genres'] ?? [])->pluck('name')->take(3);
         $detailRoute = $type === 'tv' ? 'tv.detail' : 'movies.detail';
         $activeProviderName = $source['provider'] ?? 'Unknown';
+        $isCineSrcEmbed = $source !== null && ($source['type'] ?? '') === 'embed' && ($source['provider'] ?? '') === 'CineSrc';
+        $isHlsSource = $source !== null && ($source['type'] ?? '') === 'hls';
     @endphp
 
     {{-- Cinematic backdrop --}}
@@ -307,6 +339,45 @@ class extends Component
                                         allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
                                         referrerpolicy="origin"
                                     ></iframe>
+                                @elseif($source['type'] === 'hls')
+                                    <div class="relative h-full w-full bg-black">
+                                        <video
+                                            id="hls-player"
+                                            class="h-full w-full bg-black"
+                                            controls
+                                            playsinline
+                                            autoplay
+                                            x-ref="hlsVideo"
+                                            x-on:playing="hlsLoading = false"
+                                            x-on:error="hlsError = true; hlsLoading = false"
+                                        ></video>
+                                        <div
+                                            x-show="hlsLoading && !hlsError"
+                                            x-cloak
+                                            class="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/70"
+                                        >
+                                            <svg class="size-8 animate-spin text-amber-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            <p class="text-sm text-zinc-300">Loading CineSrc Direct…</p>
+                                        </div>
+                                        <div
+                                            x-show="hlsError"
+                                            x-cloak
+                                            class="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 px-6 text-center"
+                                        >
+                                            <p class="text-sm font-medium text-zinc-300">Direct stream unavailable</p>
+                                            <p class="text-xs text-zinc-500">Switching to another server…</p>
+                                            <button
+                                                type="button"
+                                                wire:click="reportServerError({{ $activeServer }})"
+                                                class="mt-1 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-white/10"
+                                            >
+                                                Try next server
+                                            </button>
+                                        </div>
+                                    </div>
                                 @elseif($source['type'] === 'youtube')
                                     <iframe
                                         id="player-iframe"
@@ -354,7 +425,7 @@ class extends Component
                                     <div x-show="open" @click.away="open = false" x-transition:enter="transition ease-out duration-150" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0" x-transition:leave="transition ease-in duration-100" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="absolute bottom-full left-0 z-50 mb-2 w-60 origin-bottom-left rounded-xl border border-white/[0.08] bg-zinc-900 p-1.5 shadow-2xl shadow-black/50" style="display: none;">
                                         <p class="mb-1 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-widest text-zinc-500">Streaming Servers</p>
                                         @foreach($sources as $i => $s)
-                                            @if($s['type'] === 'embed')
+                                            @if(in_array($s['type'], ['embed', 'hls'], true))
                                                 <button
                                                     wire:click="selectServer({{ $i }})"
                                                     @click="open = false"
@@ -370,7 +441,9 @@ class extends Component
                                                         </span>
                                                     @endif
                                                     {{ $s['provider'] }}
-                                                    @if($i === 0)
+                                                    @if(($s['type'] ?? '') === 'hls')
+                                                        <span class="ml-auto rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">HLS</span>
+                                                    @elseif($i === 0)
                                                         <span class="ml-auto rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400">Best</span>
                                                     @endif
                                                 </button>
@@ -457,6 +530,12 @@ class extends Component
                         </a>
                     </div>
                 </div>
+
+                @include('partials.where-to-watch', [
+                    'streamingOptions' => $streamingOptions,
+                    'tmdbId' => $tmdbId,
+                    'mediaType' => $type,
+                ])
             </div>
 
             {{-- Sidebar: Episodes panel for TV --}}
@@ -550,6 +629,9 @@ class extends Component
     </div>
 
     {{-- Player tracking: postMessage + localStorage fallback --}}
+    @if($isHlsSource && $source)
+        <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
+    @endif
     <script>
         function watchPlayer() {
             return {
@@ -560,10 +642,35 @@ class extends Component
                 lastProgress: 0,
                 lastDuration: 0,
                 postMessageActive: false,
+                isCineSrc: @json($isCineSrcEmbed),
+                hlsUrl: @json($isHlsSource ? ($source['url'] ?? '') : ''),
+                resumeAt: {{ max(0, (int) $progressSeconds) }},
+                hlsInstance: null,
+                hlsLoading: @json($isHlsSource),
+                hlsError: false,
                 init() {
                     this.startTime = Date.now();
                     this.restoreFromLocal();
+                    this.initHlsPlayer();
 
+                    if (this.isCineSrc) {
+                        this.bindCineSrcMessages();
+                    } else if (!this.hlsUrl) {
+                        this.startHeartbeat();
+                    }
+
+                    window.addEventListener('beforeunload', () => {
+                        this.saveToLocal();
+                        this.saveNow();
+                    });
+
+                    document.addEventListener('livewire:navigating', () => {
+                        this.saveToLocal();
+                        this.saveNow();
+                        this.destroyHls();
+                    });
+                },
+                bindCineSrcMessages() {
                     window.addEventListener('message', (event) => {
                         if (event.origin !== 'https://cinesrc.st') return;
                         const data = event.data;
@@ -571,18 +678,95 @@ class extends Component
 
                         switch (data.type) {
                             case 'cinesrc:timeupdate':
+                            case 'cinesrc:seeked':
                                 this.postMessageActive = true;
-                                this.lastProgress = Math.floor(data.time || 0);
-                                this.lastDuration = Math.floor(data.duration || 0);
+                                this.lastProgress = Math.floor(data.currentTime ?? data.time ?? 0);
+                                this.lastDuration = Math.floor(data.duration ?? this.lastDuration ?? 0);
                                 this.saveToLocal();
                                 this.debounceSave();
+                                break;
+                            case 'cinesrc:loadedmetadata':
+                                this.lastDuration = Math.floor(data.duration ?? 0);
+                                break;
+                            case 'cinesrc:ended':
+                                this.saveNow();
+                                break;
+                            case 'cinesrc:nextepisode':
+                                if (data.internalNavigation && data.season && data.episode) {
+                                    @this.call('handleNextEpisode', data.season, data.episode);
+                                }
+                                break;
+                            case 'cinesrc:sourceused':
+                                if (data.sourceId) {
+                                    @this.call('saveCineSrcServer', data.sourceId);
+                                }
+                                break;
+                            case 'cinesrc:close':
+                                if (window.history.length > 1) {
+                                    window.history.back();
+                                } else {
+                                    window.location.href = @json(route($detailRoute, $tmdbId));
+                                }
                                 break;
                             case 'cinesrc:error':
                                 @this.call('reportServerError', {{ $activeServer }});
                                 break;
                         }
                     });
+                },
+                initHlsPlayer() {
+                    if (!this.hlsUrl) return;
 
+                    const video = this.$refs.hlsVideo;
+                    if (!video) return;
+
+                    const onReady = () => {
+                        if (this.resumeAt > 30 && Number.isFinite(video.duration) && this.resumeAt < video.duration - 15) {
+                            video.currentTime = this.resumeAt;
+                        }
+                    };
+
+                    video.addEventListener('timeupdate', () => this.trackNativeVideo(video));
+                    video.addEventListener('ended', () => this.saveNow());
+                    video.addEventListener('error', () => {
+                        @this.call('reportServerError', {{ $activeServer }});
+                    });
+
+                    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                        video.src = this.hlsUrl;
+                        video.addEventListener('loadedmetadata', onReady, { once: true });
+                        return;
+                    }
+
+                    if (typeof Hls === 'undefined' || !Hls.isSupported()) {
+                        video.dispatchEvent(new Event('error'));
+                        return;
+                    }
+
+                    this.hlsInstance = new Hls({
+                        enableWorker: true,
+                        startPosition: this.resumeAt > 30 ? this.resumeAt : -1,
+                    });
+                    this.hlsInstance.loadSource(this.hlsUrl);
+                    this.hlsInstance.attachMedia(video);
+                    this.hlsInstance.on(Hls.Events.MANIFEST_PARSED, onReady);
+                    this.hlsInstance.on(Hls.Events.ERROR, (_event, data) => {
+                        if (data?.fatal) {
+                            this.hlsError = true;
+                            this.hlsLoading = false;
+                            video.dispatchEvent(new Event('error'));
+                        }
+                    });
+                },
+                trackNativeVideo(video) {
+                    this.hlsLoading = false;
+                    this.postMessageActive = true;
+                    this.lastProgress = Math.floor(video.currentTime || 0);
+                    this.lastDuration = Math.floor(video.duration || this.lastDuration || 0);
+                    this.saveToLocal();
+                    this.debounceSave();
+                },
+                startHeartbeat() {
                     this.heartbeatTimer = setInterval(() => {
                         if (this.postMessageActive) return;
                         const elapsed = Math.floor((Date.now() - this.startTime) / 1000);
@@ -593,16 +777,6 @@ class extends Component
                             this.debounceSave();
                         }
                     }, 10000);
-
-                    window.addEventListener('beforeunload', () => {
-                        this.saveToLocal();
-                        this.saveNow();
-                    });
-
-                    document.addEventListener('livewire:navigating', () => {
-                        this.saveToLocal();
-                        this.saveNow();
-                    });
                 },
                 restoreFromLocal() {
                     try {
@@ -637,6 +811,13 @@ class extends Component
                 },
                 destroy() {
                     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
+                    this.destroyHls();
+                },
+                destroyHls() {
+                    if (this.hlsInstance) {
+                        this.hlsInstance.destroy();
+                        this.hlsInstance = null;
+                    }
                 }
             };
         }

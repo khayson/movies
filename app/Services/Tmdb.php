@@ -84,7 +84,7 @@ class Tmdb
     public function details(string $type, int $id): array
     {
         return $this->get("/{$type}/{$id}", [
-            'append_to_response' => 'credits,videos,similar,recommendations',
+            'append_to_response' => 'credits,videos,similar,recommendations,reviews',
         ]);
     }
 
@@ -175,6 +175,36 @@ class Tmdb
             'sort_by' => 'popularity.desc',
             'page' => $page,
         ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function images(string $type, int $id): array
+    {
+        return $this->get("/{$type}/{$id}/images", [
+            'include_image_languages' => 'en,null',
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function videos(string $type, int $id): array
+    {
+        return $this->get("/{$type}/{$id}/videos");
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $videosResults
+     */
+    public static function extractTrailerKey(array $videosResults): ?string
+    {
+        $video = collect($videosResults)->first(
+            fn (array $v): bool => ($v['site'] ?? '') === 'YouTube' && in_array($v['type'] ?? '', ['Trailer', 'Teaser'])
+        );
+
+        return $video['key'] ?? null;
     }
 
     public function imageUrl(string $path, string $size = 'w500'): string

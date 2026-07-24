@@ -210,6 +210,15 @@ class extends Component
             return $v['site'] === 'YouTube' && in_array($v['type'], ['Trailer', 'Teaser']);
         });
 
+        $videos = collect($show['videos']['results'] ?? [])
+            ->filter(fn (array $v) => $v['site'] === 'YouTube' && in_array($v['type'], ['Trailer', 'Teaser', 'Featurette', 'Clip']))
+            ->sortBy(fn (array $v) => match ($v['type']) { 'Trailer' => 0, 'Teaser' => 1, default => 2 })
+            ->take(6)
+            ->values()
+            ->all();
+
+        $tmdbReviews = array_slice($show['reviews']['results'] ?? [], 0, 10);
+
         $reviews = Review::where('tmdb_id', $this->tmdbId)
             ->where('media_type', 'tv')
             ->with('user')
@@ -242,10 +251,12 @@ class extends Component
             'seasons' => $seasons,
             'seasonData' => $seasonData,
             'trailer' => $trailer,
+            'videos' => $videos,
             'similar' => array_slice($show['similar']['results'] ?? [], 0, 6),
             'reviews' => $reviews,
             'userReview' => auth()->check() ? $reviews->firstWhere('user_id', auth()->id()) : null,
             'averageUserRating' => $reviews->count() > 0 ? round($reviews->avg('rating'), 1) : null,
+            'tmdbReviews' => $tmdbReviews,
             'userCollections' => $userCollections,
             'watchedEpisodes' => $watchedEpisodes,
             'streamingOptions' => $streamingOptions,
@@ -358,21 +369,44 @@ class extends Component
             </div>
         </div>
 
-        {{-- Trailer for upcoming --}}
-        @if($isUpcoming && $trailer)
+        {{-- Videos section --}}
+        @if(count($videos) > 0)
             <section class="mt-12">
-                <h2 class="mb-4 flex items-center gap-2 text-xl font-bold">
-                    <span class="h-5 w-1 rounded-full bg-amber-500"></span>
-                    Official Trailer
+                <h2 class="mb-5 flex items-center gap-2 text-xl font-bold">
+                    <span class="h-5 w-1 rounded-full bg-red-500"></span>
+                    Trailers & Videos
+                    <span class="ml-1 rounded-lg bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-400">{{ count($videos) }}</span>
                 </h2>
-                <div class="aspect-video w-full max-w-3xl overflow-hidden rounded-2xl bg-zinc-900 ring-1 ring-white/[0.06]">
-                    <iframe
-                        src="https://www.youtube.com/embed/{{ $trailer['key'] }}"
-                        class="h-full w-full"
-                        frameborder="0"
-                        allowfullscreen
-                        allow="autoplay; encrypted-media"
-                    ></iframe>
+                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    @foreach($videos as $video)
+                        <div x-data="{ playing: false }" class="group">
+                            <div class="relative aspect-video overflow-hidden rounded-xl bg-zinc-900 ring-1 ring-white/[0.06] transition group-hover:ring-white/[0.15]">
+                                <template x-if="!playing">
+                                    <div class="relative h-full w-full cursor-pointer" @click="playing = true">
+                                        <img src="https://img.youtube.com/vi/{{ $video['key'] }}/hqdefault.jpg" alt="{{ $video['name'] }}" class="h-full w-full object-cover" loading="lazy">
+                                        <div class="absolute inset-0 flex items-center justify-center bg-black/30 transition group-hover:bg-black/20">
+                                            <div class="flex size-14 items-center justify-center rounded-full bg-red-600/90 text-white shadow-lg shadow-red-600/30 transition group-hover:scale-110">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="size-6 translate-x-0.5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                                            </div>
+                                        </div>
+                                        <div class="absolute bottom-2 left-2">
+                                            <span class="rounded bg-black/70 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white backdrop-blur-sm">{{ $video['type'] }}</span>
+                                        </div>
+                                    </div>
+                                </template>
+                                <template x-if="playing">
+                                    <iframe
+                                        src="https://www.youtube.com/embed/{{ $video['key'] }}?autoplay=1"
+                                        class="h-full w-full"
+                                        frameborder="0"
+                                        allowfullscreen
+                                        allow="autoplay; encrypted-media"
+                                    ></iframe>
+                                </template>
+                            </div>
+                            <p class="mt-2 text-sm font-medium text-zinc-300">{{ Str::limit($video['name'], 50) }}</p>
+                        </div>
+                    @endforeach
                 </div>
             </section>
         @endif
@@ -492,7 +526,11 @@ class extends Component
             </section>
         @endif
 
-        @include('partials.reviews-section')
+        @include('partials.reviews-section', [
+            'tmdbRating' => $show['vote_average'] ?? null,
+            'tmdbVoteCount' => $show['vote_count'] ?? 0,
+            'imdbId' => $show['external_ids']['imdb_id'] ?? null,
+        ])
 
         @if(count($similar) > 0)
             @include('partials.media-row', ['title' => 'Similar Shows', 'items' => $similar, 'type' => 'tv'])

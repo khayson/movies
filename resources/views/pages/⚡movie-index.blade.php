@@ -43,42 +43,85 @@ class extends Component
             default => $tmdb->popular('movie', $this->page),
         };
 
+        $heroMovie = null;
+        $results = $data['results'] ?? [];
+        if ($this->page === 1 && count($results) > 0) {
+            $heroMovie = $results[0];
+        }
+
         return [
-            'movies' => $data['results'] ?? [],
+            'movies' => $results,
             'totalPages' => min($data['total_pages'] ?? 1, 500),
+            'heroMovie' => $heroMovie,
         ];
     }
 };
 ?>
 
 <div>
-    <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <h1 class="mb-6 text-3xl font-bold">Movies</h1>
+    {{-- Cinematic Header --}}
+    <div class="relative overflow-hidden">
+        @if($heroMovie && !empty($heroMovie['backdrop_path']))
+            <div class="absolute inset-0">
+                <img src="{{ app(Tmdb::class)->backdropUrl($heroMovie['backdrop_path'], 'w1280') }}" alt="" class="h-full w-full object-cover opacity-20">
+            </div>
+        @endif
+        <div class="absolute inset-0 bg-gradient-to-b from-zinc-950/50 via-zinc-950/80 to-zinc-950"></div>
+        <div class="relative mx-auto max-w-7xl px-4 pb-8 pt-12 sm:px-6 lg:px-8">
+            <div class="flex items-end justify-between">
+                <div>
+                    <div class="mb-2 flex items-center gap-3">
+                        <span class="h-6 w-1 rounded-full bg-amber-500"></span>
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-amber-400/80">Browse</p>
+                    </div>
+                    <h1 class="text-4xl font-bold tracking-tight md:text-5xl">Movies</h1>
+                    <p class="mt-2 text-sm text-zinc-400">Explore thousands of movies across every genre</p>
+                </div>
+            </div>
 
-        <div class="scrollbar-hide mb-8 flex gap-2 overflow-x-auto pb-1">
-            @foreach(['popular' => 'Popular', 'top_rated' => 'Top Rated', 'trending' => 'Trending', 'now_playing' => 'Now Playing', 'upcoming' => 'Upcoming'] as $key => $label)
-                <button
-                    wire:click="setCategory('{{ $key }}')"
-                    class="whitespace-nowrap rounded-lg px-4 py-2 text-sm font-medium transition {{ $category === $key ? 'bg-amber-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white' }}"
-                >
-                    {{ $label }}
-                </button>
-            @endforeach
+            {{-- Category Tabs --}}
+            <div class="scrollbar-hide mt-8 flex gap-2 overflow-x-auto pb-1">
+                @foreach(['popular' => 'Popular', 'top_rated' => 'Top Rated', 'trending' => 'Trending', 'now_playing' => 'Now Playing', 'upcoming' => 'Upcoming'] as $key => $label)
+                    <button
+                        wire:click="setCategory('{{ $key }}')"
+                        class="whitespace-nowrap rounded-xl px-5 py-2.5 text-sm font-medium transition {{ $category === $key ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.12] hover:bg-white/[0.06] hover:text-white' }}"
+                    >
+                        {{ $label }}
+                    </button>
+                @endforeach
+            </div>
+        </div>
+    </div>
+
+    <div class="mx-auto max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        {{-- Results count --}}
+        <div class="mb-6 flex items-center justify-between">
+            <p class="text-sm text-zinc-500">
+                Page <span class="font-medium text-zinc-300">{{ $page }}</span> of <span class="font-medium text-zinc-300">{{ $totalPages }}</span>
+            </p>
         </div>
 
+        {{-- Movie Grid --}}
         <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             @foreach($movies as $movie)
-                @include('partials.media-card', ['item' => $movie, 'type' => 'movie', 'showOverview' => true])
+                @include('partials.media-card', ['item' => $movie, 'type' => 'movie'])
             @endforeach
         </div>
 
-        <div class="mt-8 flex items-center justify-center gap-4">
+        {{-- Pagination --}}
+        <div class="mt-10 flex items-center justify-center gap-3">
             @if($page > 1)
-                <button wire:click="previousPage" class="rounded-lg bg-zinc-800 px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700">Previous</button>
+                <button wire:click="previousPage" class="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-5 py-2.5 text-sm font-medium text-zinc-300 transition hover:border-white/[0.15] hover:bg-white/[0.06] hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" /></svg>
+                    Previous
+                </button>
             @endif
-            <span class="text-sm text-zinc-500">Page {{ $page }} of {{ $totalPages }}</span>
+            <span class="rounded-xl bg-white/[0.04] px-5 py-2.5 text-sm tabular-nums text-zinc-500">{{ $page }} / {{ $totalPages }}</span>
             @if($page < $totalPages)
-                <button wire:click="nextPage" class="rounded-lg bg-zinc-800 px-4 py-2 text-sm text-zinc-300 transition hover:bg-zinc-700">Next</button>
+                <button wire:click="nextPage" class="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-5 py-2.5 text-sm font-medium text-zinc-300 transition hover:border-white/[0.15] hover:bg-white/[0.06] hover:text-white">
+                    Next
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
+                </button>
             @endif
         </div>
     </div>
