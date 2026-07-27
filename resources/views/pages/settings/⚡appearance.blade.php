@@ -12,15 +12,18 @@ class extends Component {
 }; ?>
 
 <section class="w-full">
-    <div class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
     @include('partials.settings-heading')
 
     <x-pages::settings.layout :heading="__('Appearance')" :subheading="__('Update the appearance settings for your account')">
-        <flux:radio.group x-data variant="segmented" x-model="$flux.appearance">
-            <flux:radio value="light" icon="sun">{{ __('Light') }}</flux:radio>
-            <flux:radio value="dark" icon="moon">{{ __('Dark') }}</flux:radio>
-            <flux:radio value="system" icon="computer-desktop">{{ __('System') }}</flux:radio>
-        </flux:radio.group>
+        <div id="settings-appearance" class="scroll-mt-28 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 sm:p-6">
+            <p class="mb-4 text-xs text-zinc-500">{{ __('Choose how StreamVault looks on this device.') }}</p>
+            <flux:radio.group x-data variant="segmented" x-model="$flux.appearance">
+                <flux:radio value="light" icon="sun">{{ __('Light') }}</flux:radio>
+                <flux:radio value="dark" icon="moon">{{ __('Dark') }}</flux:radio>
+                <flux:radio value="system" icon="computer-desktop">{{ __('System') }}</flux:radio>
+            </flux:radio.group>
+        </div>
     </x-pages::settings.layout>
     </div>
 </section>

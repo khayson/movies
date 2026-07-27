@@ -3,6 +3,7 @@
 use App\Models\Review;
 use App\Services\StreamingAvailability;
 use App\Services\Tmdb;
+use Illuminate\Support\Facades\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
@@ -140,6 +141,12 @@ class extends Component
     public function with(Tmdb $tmdb, StreamingAvailability $streaming): array
     {
         $movie = $tmdb->details('movie', $this->tmdbId);
+
+        View::share('ogTitle', ($movie['title'] ?? 'Movie') . ' — ' . config('app.name'));
+        View::share('ogDescription', Str::limit($movie['overview'] ?? '', 200));
+        View::share('ogImage', ! empty($movie['backdrop_path']) ? $tmdb->backdropUrl($movie['backdrop_path']) : null);
+        View::share('ogType', 'video.movie');
+
         $isFavorited = auth()->check() && auth()->user()->hasFavorited($this->tmdbId, 'movie');
         $isOnWatchlist = auth()->check() && auth()->user()->hasOnWatchlist($this->tmdbId, 'movie');
         $releaseDate = $movie['release_date'] ?? '';
@@ -291,6 +298,7 @@ class extends Component
                         {{ $isOnWatchlist ? 'On Watchlist' : 'Watchlist' }}
                     </button>
                     @include('partials.add-to-collection', ['mediaTitle' => $title, 'mediaPoster' => $movie['poster_path'] ?? null])
+                    @include('partials.share-buttons', ['shareTitle' => $title . ' — StreamVault', 'shareUrl' => route('movies.detail', $movie['id'])])
                 </div>
             </div>
         </div>

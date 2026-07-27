@@ -6,14 +6,22 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new
 #[Layout('layouts.guest')]
 #[Title('Activity Feed — StreamVault')]
 class extends Component
 {
+    use WithPagination;
+
     #[Url]
     public string $filter = 'following';
+
+    public function updatedFilter(): void
+    {
+        $this->resetPage();
+    }
 
     public function with(): array
     {
@@ -24,13 +32,11 @@ class extends Component
             $activities = Activity::whereIn('user_id', $followingIds)
                 ->with('user')
                 ->latest()
-                ->limit(50)
-                ->get();
+                ->paginate(20);
         } else {
             $activities = Activity::with('user')
                 ->latest()
-                ->limit(50)
-                ->get();
+                ->paginate(20);
         }
 
         return [
@@ -122,6 +128,10 @@ class extends Component
                         </div>
                     </div>
                 @endforeach
+            </div>
+
+            <div class="mt-8">
+                {{ $activities->links() }}
             </div>
         @endif
     </div>

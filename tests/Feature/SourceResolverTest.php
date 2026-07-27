@@ -4,6 +4,7 @@ use App\Models\User;
 use App\Models\WatchHistory;
 use App\Services\SourceResolver;
 use Illuminate\Support\Facades\Http;
+use Livewire\Livewire;
 
 test('resolve includes personalized cinesrc embed as first source', function () {
     config(['sources.cinesrc.resolver_url' => null]);
@@ -88,4 +89,106 @@ test('recommendServer prefers user default source preference', function () {
     $sources = app(SourceResolver::class)->resolve(550, 'movie');
 
     expect($sources[$index]['provider'])->toBe('VidCore');
+});
+
+test('excluded providers are filtered from resolve', function () {
+    config(['sources.cinesrc.resolver_url' => null]);
+
+    $user = User::factory()->create([
+        'preferences' => ['excluded_providers' => ['VidCore', 'CineSrc']],
+    ]);
+
+    $this->actingAs($user);
+
+    $providers = collect(app(SourceResolver::class)->resolve(550, 'movie'))->pluck('provider');
+
+    expect($providers)->not->toContain('VidCore')
+        ->and($providers)->not->toContain('CineSrc');
+});
+
+test('remember last server off skips cinesrc lastserver injection', function () {
+    config(['sources.cinesrc.resolver_url' => null]);
+
+    $user = User::factory()->create([
+        'preferences' => ['remember_last_server' => false],
+    ]);
+
+    WatchHistory::factory()->create([
+        'user_id' => $user->id,
+        'tmdb_id' => 550,
+        'media_type' => 'movie',
+        'progress_seconds' => 600,
+        'cinesrc_server_id' => 'mirror-a',
+    ]);
+
+    $this->actingAs($user);
+
+    $cinesrc = collect(app(SourceResolver::class)->resolve(550, 'movie'))->firstWhere('provider', 'CineSrc');
+
+    expect($cinesrc['url'])->toContain('t=600')
+        ->and($cinesrc['url'])->not->toContain('lastserver=mirror-a');
+});
+
+test('resume prompt preference is passed to cinesrc embed', function () {
+    config(['sources.cinesrc.resolver_url' => null]);
+
+    $user = User::factory()->create([
+        'preferences' => ['resume_prompt' => false],
+    ]);
+
+    WatchHistory::factory()->create([
+        'user_id' => $user->id,
+        'tmdb_id' => 550,
+        'media_type' => 'movie',
+        'progress_seconds' => 600,
+    ]);
+
+    $this->actingAs($user);
+
+    $cinesrc = collect(app(SourceResolver::class)->resolve(550, 'movie'))->firstWhere('provider', 'CineSrc');
+
+    expect($cinesrc['url'])->toContain('continueprompt=false');
+});
+
+test('prefer hls direct boosts cinesrc direct recommendation', function () {
+    config(['sources.cinesrc.resolver_url' => 'http://127.0.0.1:8787']);
+
+    Http::fake([
+        '127.0.0.1:8787/api/stream/live*' => Http::response(
+            "event: ready\ndata: {\"playUrl\":\"http://127.0.0.1:8787/api/proxy?url=https%3A%2F%2Fcdn.example.com%2Fstream.m3u8\",\"quality\":\"1080\"}\n\n",
+            200,
+            ['Content-Type' => 'text/event-stream'],
+        ),
+    ]);
+
+    $user = User::factory()->create([
+        'preferences' => ['prefer_hls_direct' => true],
+    ]);
+
+    $this->actingAs($user);
+
+    $index = app(SourceResolver::class)->recommendServer(550, 'movie', null, null);
+    $sources = app(SourceResolver::class)->resolve(550, 'movie');
+
+    expect($sources[$index]['provider'])->toBe('CineSrc Direct');
+});
+
+test('watch page reportServerError respects auto fallback preference', function () {
+    config(['sources.cinesrc.resolver_url' => null]);
+
+    $user = User::factory()->create([
+        'preferences' => ['auto_fallback_on_error' => false],
+    ]);
+
+    $this->actingAs($user);
+
+    $component = Livewire::test('pages::watch-page', [
+        'type' => 'movie',
+        'tmdbId' => 550,
+    ]);
+
+    $active = $component->get('activeServer');
+    $component->call('reportServerError', $active);
+
+    expect($component->get('activeServer'))->toBe($active);
 });

@@ -24,9 +24,11 @@ test('user can follow another user', function () {
 test('user cannot follow themselves', function () {
     $user = User::factory()->create();
 
-    $this->actingAs($user)
+    $response = $this->actingAs($user)
         ->get(route('user.profile', $user->id))
-        ->assertDontSee('Follow');
+        ->assertOk();
+
+    expect($response->getContent())->not->toContain('wire:click="toggleFollow"');
 });
 
 test('notifications page loads for authenticated user', function () {

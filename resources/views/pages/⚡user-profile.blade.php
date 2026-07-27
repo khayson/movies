@@ -1,11 +1,13 @@
 <?php
 
+use App\Models\Conversation;
 use App\Models\Follow;
 use App\Models\User;
 use App\Services\ActivityLogger;
 use App\Services\BadgeService;
 use App\Services\StreakService;
 use App\Services\Tmdb;
+use Illuminate\Support\Facades\View;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -47,9 +49,24 @@ class extends Component
         }
     }
 
+    public function sendMessage(): void
+    {
+        $user = auth()->user();
+        if (!$user || $user->id === $this->userId) {
+            return;
+        }
+
+        $conversation = Conversation::findOrStartBetween($user->id, $this->userId);
+        $this->redirect(route('messages.thread', $conversation->id), navigate: true);
+    }
+
     public function with(StreakService $streakService, BadgeService $badgeService): array
     {
         $user = User::findOrFail($this->userId);
+
+        View::share('ogTitle', $user->name . ' — ' . config('app.name'));
+        View::share('ogDescription', $user->name . ' has watched ' . $user->watchHistory()->count() . ' titles and written ' . $user->reviews()->count() . ' reviews on ' . config('app.name') . '.');
+        View::share('ogType', 'profile');
 
         $badgeService->checkAndAward($user);
 
@@ -111,10 +128,16 @@ class extends Component
                 </div>
                 @auth
                     @if(auth()->id() !== $profileUser->id)
-                        <button wire:click="toggleFollow"
-                                class="rounded-xl px-6 py-2.5 text-sm font-semibold transition {{ $isFollowing ? 'border border-white/[0.08] bg-white/[0.03] text-zinc-300 hover:border-red-500/30 hover:text-red-400' : 'bg-amber-600 text-white shadow-lg shadow-amber-600/20 hover:bg-amber-500' }}">
-                            {{ $isFollowing ? 'Unfollow' : 'Follow' }}
-                        </button>
+                        <div class="flex items-center gap-2">
+                            <button wire:click="sendMessage"
+                                    class="rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-sm font-semibold text-zinc-300 transition hover:border-blue-500/30 hover:text-blue-400">
+                                Message
+                            </button>
+                            <button wire:click="toggleFollow"
+                                    class="rounded-xl px-6 py-2.5 text-sm font-semibold transition {{ $isFollowing ? 'border border-white/[0.08] bg-white/[0.03] text-zinc-300 hover:border-red-500/30 hover:text-red-400' : 'bg-amber-600 text-white shadow-lg shadow-amber-600/20 hover:bg-amber-500' }}">
+                                {{ $isFollowing ? 'Unfollow' : 'Follow' }}
+                            </button>
+                        </div>
                     @endif
                 @endauth
             </div>

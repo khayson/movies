@@ -4,6 +4,7 @@ use App\Models\EpisodeWatch;
 use App\Models\Review;
 use App\Services\StreamingAvailability;
 use App\Services\Tmdb;
+use Illuminate\Support\Facades\View;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
@@ -192,6 +193,12 @@ class extends Component
     public function with(Tmdb $tmdb, StreamingAvailability $streaming): array
     {
         $show = $tmdb->details('tv', $this->tmdbId);
+
+        View::share('ogTitle', ($show['name'] ?? 'TV Show') . ' — ' . config('app.name'));
+        View::share('ogDescription', Str::limit($show['overview'] ?? '', 200));
+        View::share('ogImage', ! empty($show['backdrop_path']) ? $tmdb->backdropUrl($show['backdrop_path']) : null);
+        View::share('ogType', 'video.tv_show');
+
         $isFavorited = auth()->check() && auth()->user()->hasFavorited($this->tmdbId, 'tv');
         $isOnWatchlist = auth()->check() && auth()->user()->hasOnWatchlist($this->tmdbId, 'tv');
         $firstAirDate = $show['first_air_date'] ?? '';
@@ -238,6 +245,10 @@ class extends Component
                 ->toArray()
             : [];
 
+        $totalEpisodes = $show['number_of_episodes'] ?? 0;
+        $watchedCount = count($watchedEpisodes);
+        $progressPercent = $totalEpisodes > 0 ? round(($watchedCount / $totalEpisodes) * 100) : 0;
+
         $streamingCountry = $streaming->getUserCountry();
         $streamingData = $streaming->getByTmdbId('tv', $this->tmdbId, $streamingCountry);
         $streamingOptions = $streamingData ? $streaming->getStreamingOptions($streamingData, $streamingCountry) : [];
@@ -259,6 +270,9 @@ class extends Component
             'tmdbReviews' => $tmdbReviews,
             'userCollections' => $userCollections,
             'watchedEpisodes' => $watchedEpisodes,
+            'totalEpisodes' => $totalEpisodes,
+            'watchedCount' => $watchedCount,
+            'progressPercent' => $progressPercent,
             'streamingOptions' => $streamingOptions,
         ];
     }
@@ -365,9 +379,35 @@ class extends Component
                         {{ $isOnWatchlist ? 'On Watchlist' : 'Watchlist' }}
                     </button>
                     @include('partials.add-to-collection', ['mediaTitle' => $title, 'mediaPoster' => $show['poster_path'] ?? null])
+                    @include('partials.share-buttons', ['shareTitle' => $title . ' — StreamVault', 'shareUrl' => route('tv.detail', $show['id'])])
                 </div>
             </div>
         </div>
+
+        {{-- Episode Progress Bar --}}
+        @auth
+            @if($totalEpisodes > 0 && $watchedCount > 0)
+                <div class="mt-8 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+                    <div class="mb-2 flex items-center justify-between">
+                        <h3 class="flex items-center gap-2 text-sm font-semibold">
+                            <span class="h-4 w-1 rounded-full bg-emerald-500"></span>
+                            Your Progress
+                        </h3>
+                        <span class="text-sm font-bold tabular-nums text-emerald-400">{{ $watchedCount }}/{{ $totalEpisodes }} episodes</span>
+                    </div>
+                    <div class="h-2.5 overflow-hidden rounded-full bg-white/[0.06]">
+                        <div class="h-full rounded-full bg-gradient-to-r from-emerald-600 to-emerald-400 transition-all duration-500" style="width: {{ $progressPercent }}%"></div>
+                    </div>
+                    <p class="mt-2 text-xs text-zinc-500">
+                        @if($progressPercent >= 100)
+                            You've watched all episodes!
+                        @else
+                            {{ $totalEpisodes - $watchedCount }} {{ Str::plural('episode', $totalEpisodes - $watchedCount) }} remaining
+                        @endif
+                    </p>
+                </div>
+            @endif
+        @endauth
 
         {{-- Videos section --}}
         @if(count($videos) > 0)

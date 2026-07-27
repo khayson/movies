@@ -23,6 +23,24 @@ class BadgeService
         $this->awardIf($user, 'collector', $collectionCount >= 1);
         $this->awardIf($user, 'curator', $collectionItemCount >= 25);
         $this->awardIf($user, 'favoriter', $favoriteCount >= 10);
+
+        $this->awardIf($user, 'early_adopter', $user->created_at?->lt(now()->subMonths(6)) ?? false);
+
+        $hourExpr = match (config('database.default')) {
+            'sqlite' => "cast(strftime('%H', created_at) as integer)",
+            default => 'HOUR(created_at)',
+        };
+        $hasNightWatch = $user->watchHistory()
+            ->whereRaw("$hourExpr >= 0 AND $hourExpr < 4")
+            ->exists();
+        $this->awardIf($user, 'night_owl', $hasNightWatch);
+
+        $completedSeason = $user->episodeWatches()
+            ->selectRaw('tmdb_id, season_number, COUNT(*) as ep_count')
+            ->groupBy('tmdb_id', 'season_number')
+            ->havingRaw('ep_count >= 8')
+            ->exists();
+        $this->awardIf($user, 'season_finisher', $completedSeason);
     }
 
     public function awardIf(User $user, string $badgeKey, bool $condition): void

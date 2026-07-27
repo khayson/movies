@@ -73,6 +73,10 @@
 
         {{ $slot }}
 
+        @auth
+            @include('partials.logout-confirm-modal')
+        @endauth
+
         @persist('toast')
             <flux:toast.group>
                 <flux:toast />

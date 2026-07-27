@@ -22,18 +22,17 @@
             <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>
                 {{ __('Settings') }}
             </flux:menu.item>
-            <form method="POST" action="{{ route('logout') }}" class="w-full">
-                @csrf
+            <flux:modal.trigger name="confirm-logout">
                 <flux:menu.item
                     as="button"
-                    type="submit"
+                    type="button"
                     icon="arrow-right-start-on-rectangle"
                     class="w-full cursor-pointer"
                     data-test="logout-button"
                 >
                     {{ __('Log out') }}
                 </flux:menu.item>
-            </form>
+            </flux:modal.trigger>
         </flux:menu.radio.group>
     </flux:menu>
 </flux:dropdown>

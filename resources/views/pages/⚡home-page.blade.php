@@ -278,7 +278,7 @@ class extends Component
         {{-- Category tabs --}}
         <div
             x-data="{ activeTab: 'trending' }"
-            class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
+            class="reveal mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
         >
             <div class="scrollbar-hide mb-6 flex items-center gap-1 overflow-x-auto border-b border-white/[0.06] pb-px">
                 @php
@@ -366,7 +366,7 @@ class extends Component
 
         {{-- Continue Watching --}}
         @if($continueWatching->isNotEmpty())
-            <div class="mx-auto mt-12 max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div class="reveal mx-auto mt-12 max-w-7xl px-4 sm:px-6 lg:px-8">
                 <div class="mb-4 flex items-center gap-3">
                     <h2 class="text-lg font-bold text-white">Continue Watching</h2>
                     <span class="size-2 rounded-full bg-red-500 shadow-sm shadow-red-500/50"></span>
@@ -389,7 +389,7 @@ class extends Component
                 sortBy: 'popular',
                 viewMode: 'grid'
             }"
-            class="mx-auto mt-14 max-w-7xl px-4 sm:px-6 lg:px-8"
+            class="reveal mx-auto mt-14 max-w-7xl px-4 sm:px-6 lg:px-8"
         >
             {{-- Tabs header --}}
             <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -545,7 +545,7 @@ class extends Component
         </div>
 
         {{-- Upcoming Movies --}}
-        <div class="mx-auto mt-14 max-w-7xl px-4 sm:px-6 lg:px-8">
+        <div class="reveal mx-auto mt-14 max-w-7xl px-4 sm:px-6 lg:px-8">
             @if(count($upcoming) > 0)
                 @include('partials.upcoming-row', ['title' => 'Upcoming Movies', 'items' => $upcoming, 'type' => 'movie'])
             @endif
@@ -553,7 +553,7 @@ class extends Component
 
         {{-- Featured banner --}}
         @if($featured)
-            <div class="mx-auto mt-16 max-w-7xl px-4 sm:px-6 lg:px-8">
+            <div class="reveal mx-auto mt-16 max-w-7xl px-4 sm:px-6 lg:px-8">
                 <div class="relative overflow-hidden rounded-2xl border border-white/[0.06]" style="height: clamp(280px, 40vh, 420px);">
                     @if($featured['backdrop'])
                         <img src="{{ $featured['backdrop'] }}" alt="{{ $featured['title'] }}" class="h-full w-full object-cover">
@@ -590,7 +590,7 @@ class extends Component
         @endif
 
         {{-- Top Rated row --}}
-        <div class="mx-auto mt-14 max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
+        <div class="reveal mx-auto mt-14 max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
             @include('partials.media-row', [
                 'title' => 'Top Rated Movies',
                 'items' => $topRated,
@@ -606,5 +606,28 @@ class extends Component
                 'seeAllRoute' => route('new-releases', ['tab' => 'tv']),
             ])
         </div>
+
+        {{-- CTA Section --}}
+        @guest
+            <div class="reveal relative overflow-hidden border-y border-white/[0.06]">
+                <div class="absolute inset-0 bg-gradient-to-r from-red-950/20 via-transparent to-amber-950/20"></div>
+                <div class="relative mx-auto max-w-3xl px-4 py-20 text-center sm:px-6 lg:px-8">
+                    <h2 class="mb-3 text-3xl font-black tracking-tight md:text-4xl">
+                        Start Your <span class="bg-gradient-to-r from-red-400 to-amber-400 bg-clip-text text-transparent">Streaming Journey</span>
+                    </h2>
+                    <p class="mx-auto mb-8 max-w-lg text-sm leading-relaxed text-zinc-400">
+                        Track what you watch, write reviews, earn badges, challenge friends with trivia, and discover your next favorite title — all for free.
+                    </p>
+                    <div class="flex items-center justify-center gap-4">
+                        <a href="{{ route('register') }}" wire:navigate class="rounded-lg bg-gradient-to-r from-red-600 to-amber-600 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-red-600/20 transition hover:from-red-500 hover:to-amber-500 hover:shadow-red-500/30">
+                            Get Started Free
+                        </a>
+                        <a href="{{ route('trending') }}" wire:navigate class="rounded-lg border border-white/[0.1] bg-white/[0.03] px-6 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06] hover:text-white">
+                            Explore Trending
+                        </a>
+                    </div>
+                </div>
+            </div>
+        @endguest
     </div>
 </div>

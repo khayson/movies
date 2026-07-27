@@ -22,3 +22,22 @@ test('authenticated users can visit the dashboard', function () {
     $response = $this->get(route('dashboard'));
     $response->assertOk();
 });
+
+test('authenticated users see settings in the account menu', function () {
+    Http::fake([
+        'api.themoviedb.org/*' => Http::response([
+            'results' => [],
+            'total_pages' => 1,
+        ]),
+    ]);
+
+    $user = User::factory()->create();
+
+    $this->actingAs($user)
+        ->get(route('home'))
+        ->assertOk()
+        ->assertSee('data-test="nav-settings-link"', false)
+        ->assertSee(route('profile.edit'), false)
+        ->assertSee('Log out?')
+        ->assertSee('data-test="confirm-logout-button"', false);
+});

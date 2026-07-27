@@ -74,6 +74,38 @@
                             Watchlist
                         </a>
 
+                        {{-- Trending --}}
+                        <a href="{{ route('trending') }}"
+                           class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all {{ request()->routeIs('trending') ? 'text-white' : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white' }}"
+                           wire:navigate>
+                            @if(request()->routeIs('trending'))
+                                <span class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-red-500 to-red-600 shadow-lg shadow-red-600/30">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-[18px] text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" /></svg>
+                                </span>
+                            @else
+                                <span class="flex size-9 items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" /></svg>
+                                </span>
+                            @endif
+                            <span class="{{ request()->routeIs('trending') ? 'font-semibold' : '' }}">Trending</span>
+                        </a>
+
+                        {{-- Trivia --}}
+                        <a href="{{ route('quiz') }}"
+                           class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all {{ request()->routeIs('quiz') ? 'text-white' : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white' }}"
+                           wire:navigate>
+                            @if(request()->routeIs('quiz'))
+                                <span class="flex size-9 items-center justify-center rounded-xl bg-gradient-to-br from-purple-500 to-purple-600 shadow-lg shadow-purple-600/30">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-[18px] text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" /></svg>
+                                </span>
+                            @else
+                                <span class="flex size-9 items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" /></svg>
+                                </span>
+                            @endif
+                            <span class="{{ request()->routeIs('quiz') ? 'font-semibold' : '' }}">Trivia</span>
+                        </a>
+
                         {{-- Coming Soon --}}
                         <a href="{{ route('upcoming.index') }}"
                            class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all {{ request()->routeIs('upcoming.*') ? 'text-white' : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white' }}"
@@ -90,6 +122,38 @@
                             <span class="{{ request()->routeIs('upcoming.*') ? 'font-semibold' : '' }}">Coming Soon</span>
                         </a>
                     </div>
+
+                    @auth
+                        <p class="mb-3 mt-8 px-3 text-[11px] font-semibold uppercase tracking-widest text-zinc-600">You</p>
+                        <div class="space-y-1">
+                            <a href="{{ route('messages') }}"
+                               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all {{ request()->routeIs('messages*') ? 'text-white' : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white' }}"
+                               wire:navigate>
+                                <span class="flex size-9 items-center justify-center {{ request()->routeIs('messages*') ? 'rounded-xl bg-gradient-to-br from-blue-500 to-blue-600 shadow-lg shadow-blue-600/30' : '' }}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-[18px] {{ request()->routeIs('messages*') ? 'text-white' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="{{ request()->routeIs('messages*') ? '2' : '1.5' }}"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" /></svg>
+                                </span>
+                                <span class="{{ request()->routeIs('messages*') ? 'font-semibold' : '' }}">Messages</span>
+                            </a>
+
+                            <a href="{{ route('badges') }}"
+                               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all {{ request()->routeIs('badges') ? 'text-white' : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white' }}"
+                               wire:navigate>
+                                <span class="flex size-9 items-center justify-center {{ request()->routeIs('badges') ? 'rounded-xl bg-gradient-to-br from-amber-500 to-amber-600 shadow-lg shadow-amber-600/30' : '' }}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-[18px] {{ request()->routeIs('badges') ? 'text-white' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="{{ request()->routeIs('badges') ? '2' : '1.5' }}"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-.871M7.5 18.75v-3.375c0-.621.504-1.125 1.125-1.125h.872m5.007 0H9.497m5.007 0a7.454 7.454 0 0 1-.982-3.172M9.497 14.25a7.454 7.454 0 0 0 .981-3.172M5.25 4.236c-.982.143-1.954.317-2.916.52A6.003 6.003 0 0 0 7.73 9.728M5.25 4.236V4.5c0 2.108.966 3.99 2.48 5.228M5.25 4.236V2.721C7.456 2.41 9.71 2.25 12 2.25c2.291 0 4.545.16 6.75.47v1.516M18.75 4.236c.982.143 1.954.317 2.916.52A6.003 6.003 0 0 1 16.27 9.728M18.75 4.236V4.5c0 2.108-.966 3.99-2.48 5.228m0 0a6.023 6.023 0 0 1-2.27.308 6.023 6.023 0 0 1-2.27-.308" /></svg>
+                                </span>
+                                <span class="{{ request()->routeIs('badges') ? 'font-semibold' : '' }}">Badges</span>
+                            </a>
+
+                            <a href="{{ route('stats') }}"
+                               class="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all {{ request()->routeIs('stats') ? 'text-white' : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white' }}"
+                               wire:navigate>
+                                <span class="flex size-9 items-center justify-center {{ request()->routeIs('stats') ? 'rounded-xl bg-gradient-to-br from-violet-500 to-violet-600 shadow-lg shadow-violet-600/30' : '' }}">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-[18px] {{ request()->routeIs('stats') ? 'text-white' : '' }}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="{{ request()->routeIs('stats') ? '2' : '1.5' }}"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" /></svg>
+                                </span>
+                                <span class="{{ request()->routeIs('stats') ? 'font-semibold' : '' }}">My Stats</span>
+                            </a>
+                        </div>
+                    @endauth
 
                     {{-- Following section --}}
                     @auth
@@ -140,16 +204,16 @@
                 {{-- Bottom: Log Out --}}
                 <div class="shrink-0 p-3">
                     @auth
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-                            <button type="submit"
-                                    class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300">
+                        <flux:modal.trigger name="confirm-logout">
+                            <button type="button"
+                                    class="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-zinc-500 transition-colors hover:bg-white/[0.04] hover:text-zinc-300"
+                                    data-test="sidebar-logout-button">
                                 <span class="flex size-9 items-center justify-center">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="size-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" /></svg>
                                 </span>
                                 Log Out
                             </button>
-                        </form>
+                        </flux:modal.trigger>
                     @endauth
                 </div>
             </aside>
@@ -188,12 +252,7 @@
 
                             <div class="mx-1 h-5 w-px bg-white/[0.08]"></div>
 
-                            {{-- User avatar --}}
-                            <a href="{{ route('dashboard') }}" class="group flex items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors hover:bg-white/[0.06]" wire:navigate>
-                                <div class="flex size-9 items-center justify-center rounded-full bg-gradient-to-br from-amber-500 to-amber-700 text-xs font-bold text-white ring-2 ring-amber-500/30 transition-shadow group-hover:ring-amber-500/50">
-                                    {{ auth()->user()->initials() }}
-                                </div>
-                            </a>
+                            @include('partials.user-account-menu')
                         @else
                             <a href="{{ route('login') }}" class="rounded-lg px-3.5 py-2 text-sm font-medium text-zinc-400 transition-colors hover:text-white" wire:navigate>Sign in</a>
                             <a href="{{ route('register') }}" class="rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 px-4 py-2 text-sm font-medium text-white shadow-lg shadow-amber-600/20 transition hover:from-amber-500 hover:to-amber-600" wire:navigate>Get Started</a>
@@ -209,6 +268,10 @@
                 </main>
             </div>
         </div>
+
+        @auth
+            @include('partials.logout-confirm-modal')
+        @endauth
 
         @persist('toast')
             <flux:toast position="top center" />

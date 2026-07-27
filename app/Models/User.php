@@ -102,6 +102,14 @@ class User extends Authenticatable implements PasskeyUser
     }
 
     /**
+     * @return HasMany<QuizScore, $this>
+     */
+    public function quizScores(): HasMany
+    {
+        return $this->hasMany(QuizScore::class)->latest();
+    }
+
+    /**
      * @return HasMany<Collection, $this>
      */
     public function collections(): HasMany
@@ -180,6 +188,30 @@ class User extends Authenticatable implements PasskeyUser
     public function watchParties(): HasMany
     {
         return $this->hasMany(WatchParty::class, 'host_id');
+    }
+
+    /**
+     * @return HasMany<Conversation, $this>
+     */
+    public function conversationsAsOne(): HasMany
+    {
+        return $this->hasMany(Conversation::class, 'user_one_id');
+    }
+
+    /**
+     * @return HasMany<Conversation, $this>
+     */
+    public function conversationsAsTwo(): HasMany
+    {
+        return $this->hasMany(Conversation::class, 'user_two_id');
+    }
+
+    /**
+     * @return HasMany<Message, $this>
+     */
+    public function sentMessages(): HasMany
+    {
+        return $this->hasMany(Message::class, 'sender_id');
     }
 
     public function isFollowing(User $user): bool

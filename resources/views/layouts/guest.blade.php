@@ -10,6 +10,12 @@
             .nav-item::after { content: ''; position: absolute; bottom: -1px; left: 50%; width: 0; height: 2px; background: linear-gradient(90deg, #f59e0b, #d97706); transition: all 0.3s ease; transform: translateX(-50%); border-radius: 1px; }
             .nav-item.active::after, .nav-item:hover::after { width: 100%; }
             .footer-glow { background: radial-gradient(ellipse 80% 50% at 50% 100%, rgba(245,158,11,0.04) 0%, transparent 70%); }
+            [x-cloak] { display: none !important; }
+            .reveal { opacity: 0; transform: translateY(24px); transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1); }
+            .reveal.revealed { opacity: 1; transform: translateY(0); }
+            .reveal-delay-1 { transition-delay: 0.1s; }
+            .reveal-delay-2 { transition-delay: 0.2s; }
+            .reveal-delay-3 { transition-delay: 0.3s; }
         </style>
     </head>
     <body class="min-h-screen bg-zinc-950 text-white antialiased">
@@ -32,10 +38,10 @@
                             $navItems = [
                                 ['route' => 'movies.index', 'label' => 'Movies', 'match' => 'movies.*'],
                                 ['route' => 'tv.index', 'label' => 'TV Shows', 'match' => 'tv.*'],
+                                ['route' => 'trending', 'label' => 'Trending', 'match' => 'trending'],
                                 ['route' => 'genres.index', 'label' => 'Genres', 'match' => 'genres.*'],
                                 ['route' => 'discover', 'label' => 'Discover', 'match' => 'discover'],
-                                ['route' => 'people.index', 'label' => 'People', 'match' => 'people.*'],
-                                ['route' => 'trailers', 'label' => 'Trailers', 'match' => 'trailers'],
+                                ['route' => 'quiz', 'label' => 'Trivia', 'match' => 'quiz'],
                             ];
                         @endphp
                         @foreach($navItems as $nav)
@@ -64,12 +70,7 @@
 
                         <div class="ml-1 h-5 w-px bg-white/[0.08]"></div>
 
-                        <a href="{{ route('dashboard') }}" class="ml-1 flex items-center gap-2 rounded-lg px-3 py-1.5 transition-colors hover:bg-white/[0.06] {{ request()->routeIs('dashboard') ? 'bg-white/[0.06]' : '' }}" wire:navigate>
-                            <div class="flex size-7 items-center justify-center rounded-md bg-gradient-to-br from-amber-500/80 to-amber-700/80 text-xs font-bold text-white">
-                                {{ auth()->user()->initials() }}
-                            </div>
-                            <span class="hidden text-sm font-medium text-zinc-300 sm:inline">{{ Str::words(auth()->user()->name, 1, '') }}</span>
-                        </a>
+                        @include('partials.user-account-menu')
                     @else
                         <div class="ml-1 flex items-center gap-2">
                             <a href="{{ route('login') }}" class="hidden rounded-lg px-3.5 py-2 text-sm font-medium text-zinc-400 transition-colors hover:text-white sm:inline-flex" wire:navigate>
@@ -89,10 +90,10 @@
                     $mobileNav = [
                         ['route' => 'movies.index', 'label' => 'Movies', 'match' => 'movies.*'],
                         ['route' => 'tv.index', 'label' => 'TV Shows', 'match' => 'tv.*'],
+                        ['route' => 'trending', 'label' => 'Trending', 'match' => 'trending'],
                         ['route' => 'genres.index', 'label' => 'Genres', 'match' => 'genres.*'],
                         ['route' => 'discover', 'label' => 'Discover', 'match' => 'discover'],
-                        ['route' => 'people.index', 'label' => 'People', 'match' => 'people.*'],
-                        ['route' => 'trailers', 'label' => 'Trailers', 'match' => 'trailers'],
+                        ['route' => 'quiz', 'label' => 'Trivia', 'match' => 'quiz'],
                     ];
                 @endphp
                 @foreach($mobileNav as $nav)
@@ -143,6 +144,7 @@
                                 <li><a href="{{ route('movies.index') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Movies</a></li>
                                 <li><a href="{{ route('tv.index') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>TV Shows</a></li>
                                 <li><a href="{{ route('genres.index') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Genres</a></li>
+                                <li><a href="{{ route('trending') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Trending</a></li>
                                 <li><a href="{{ route('search') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Search</a></li>
                             </ul>
                         </div>
@@ -164,6 +166,10 @@
                                 <li><a href="{{ route('leaderboard') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Leaderboard</a></li>
                                 <li><a href="{{ route('activity.feed') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Activity Feed</a></li>
                                 <li><a href="{{ route('watch-parties') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Watch Parties</a></li>
+                                <li><a href="{{ route('quiz') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Trivia</a></li>
+                                @auth
+                                    <li><a href="{{ route('profile.edit') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Settings</a></li>
+                                @endauth
                             </ul>
                         </div>
                         <div>
@@ -188,10 +194,29 @@
             </div>
         </footer>
 
+        @auth
+            @include('partials.logout-confirm-modal')
+        @endauth
+
         @persist('toast')
             <flux:toast position="top center" />
         @endpersist
 
         @fluxScripts
+
+        <script>
+            document.addEventListener('DOMContentLoaded', () => {
+                const obs = new IntersectionObserver((entries) => {
+                    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('revealed'); obs.unobserve(e.target); } });
+                }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+                document.querySelectorAll('.reveal').forEach(el => obs.observe(el));
+            });
+            document.addEventListener('livewire:navigated', () => {
+                const obs = new IntersectionObserver((entries) => {
+                    entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('revealed'); obs.unobserve(e.target); } });
+                }, { threshold: 0.1, rootMargin: '0px 0px -40px 0px' });
+                document.querySelectorAll('.reveal:not(.revealed)').forEach(el => obs.observe(el));
+            });
+        </script>
     </body>
 </html>

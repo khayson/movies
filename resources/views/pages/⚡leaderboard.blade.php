@@ -5,34 +5,43 @@ use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new
 #[Layout('layouts.guest')]
 #[Title('Leaderboard — StreamVault')]
 class extends Component
 {
+    use WithPagination;
+
     #[Url]
     public string $tab = 'reviewers';
+
+    public function updatedTab(): void
+    {
+        $this->resetPage();
+    }
 
     public function with(): array
     {
         $topReviewers = User::withCount('reviews')
             ->has('reviews')
             ->orderByDesc('reviews_count')
-            ->limit(20)
-            ->get();
+            ->paginate(20, pageName: 'reviewers');
 
         $mostActive = User::withCount('watchHistory')
             ->has('watchHistory')
+            ->where(function ($query) {
+                $query->whereNull('preferences->hide_from_leaderboard')
+                    ->orWhere('preferences->hide_from_leaderboard', false);
+            })
             ->orderByDesc('watch_history_count')
-            ->limit(20)
-            ->get();
+            ->paginate(20, pageName: 'watchers');
 
         $topCollectors = User::withCount('collections')
             ->has('collections')
             ->orderByDesc('collections_count')
-            ->limit(20)
-            ->get();
+            ->paginate(20, pageName: 'collectors');
 
         return [
             'topReviewers' => $topReviewers,
@@ -68,7 +77,7 @@ class extends Component
 
     <div class="mx-auto max-w-3xl px-4 pb-16 sm:px-6 lg:px-8">
         @php
-            $list = match($tab) {
+            $paginator = match($tab) {
                 'watchers' => $mostActive,
                 'collectors' => $topCollectors,
                 default => $topReviewers,
@@ -86,12 +95,13 @@ class extends Component
         @endphp
 
         <div class="space-y-2">
-            @foreach($list as $index => $user)
+            @foreach($paginator as $index => $user)
+                @php $rank = ($paginator->currentPage() - 1) * $paginator->perPage() + $index + 1; @endphp
                 <a href="{{ route('user.profile', $user->id) }}"
                    class="flex items-center gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 transition hover:border-white/[0.12] hover:bg-white/[0.04]" wire:navigate>
                     <span class="flex size-9 shrink-0 items-center justify-center rounded-full text-sm font-bold
-                        {{ $index === 0 ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30' : ($index === 1 ? 'bg-zinc-400 text-white' : ($index === 2 ? 'bg-amber-800 text-white' : 'bg-white/[0.06] text-zinc-400')) }}">
-                        {{ $index + 1 }}
+                        {{ $rank === 1 ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30' : ($rank === 2 ? 'bg-zinc-400 text-white' : ($rank === 3 ? 'bg-amber-800 text-white' : 'bg-white/[0.06] text-zinc-400')) }}">
+                        {{ $rank }}
                     </span>
                     <div class="flex size-10 shrink-0 items-center justify-center rounded-full bg-amber-600/20 text-sm font-bold text-amber-400">
                         {{ Str::upper(Str::substr($user->name, 0, 1)) }}
@@ -108,10 +118,14 @@ class extends Component
             @endforeach
         </div>
 
-        @if($list->isEmpty())
+        @if($paginator->isEmpty())
             <div class="rounded-2xl border border-white/[0.06] bg-white/[0.02] py-20 text-center">
                 <p class="text-zinc-500">No data yet. Be the first!</p>
             </div>
         @endif
+
+        <div class="mt-8">
+            {{ $paginator->links() }}
+        </div>
     </div>
 </div>

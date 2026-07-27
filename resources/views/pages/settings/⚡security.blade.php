@@ -171,11 +171,11 @@ class extends Component {
 }; ?>
 
 <section class="w-full">
-    <div class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
     @include('partials.settings-heading')
 
     <x-pages::settings.layout :heading="__('Update password')" :subheading="__('Ensure your account is using a long, random password to stay secure')">
-        <form method="POST" wire:submit="updatePassword" class="mt-6 space-y-6">
+        <form method="POST" wire:submit="updatePassword" id="settings-password" class="scroll-mt-28 space-y-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 sm:p-6">
             <flux:input
                 wire:model="current_password"
                 :label="__('Current password')"
@@ -211,7 +211,7 @@ class extends Component {
         </form>
 
         @if ($canManageTwoFactor)
-            <section class="mt-12">
+            <section id="settings-two-factor" class="mt-8 scroll-mt-28 space-y-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 sm:p-6">
                 <flux:heading>{{ __('Two-factor authentication') }}</flux:heading>
                 <flux:subheading>{{ __('Manage your two-factor authentication settings') }}</flux:subheading>
 
@@ -256,11 +256,11 @@ class extends Component {
         @endif
 
         @if ($canManagePasskeys)
-            <section class="mt-12">
+            <section id="settings-passkeys" class="mt-8 scroll-mt-28 space-y-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 sm:p-6">
                 <flux:heading>{{ __('Passkeys') }}</flux:heading>
                 <flux:subheading>{{ __('Manage your passkeys for passwordless sign-in') }}</flux:subheading>
 
-                <div class="mt-6 flex flex-col w-full mx-auto space-y-6 text-sm" wire:cloak>
+                <div class="mt-2 flex flex-col w-full mx-auto space-y-6 text-sm" wire:cloak>
                     <div class="border rounded-lg border-zinc-200 dark:border-zinc-700 overflow-hidden">
                         @forelse ($passkeys as $passkey)
                             <div class="flex items-center justify-between p-4 {{ ! $loop->last ? 'border-b border-zinc-200 dark:border-zinc-700' : '' }}">

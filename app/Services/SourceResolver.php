@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\ProviderAnalytic;
+use App\Support\UserPreferences;
 use Illuminate\Support\Facades\Cache;
 
 class SourceResolver
@@ -56,11 +58,44 @@ class SourceResolver
             return $sources;
         });
 
-        return [...$this->resolveCineSrc($tmdbId, $mediaType, $season, $episode), ...$sources];
+        return $this->applyUserSourceFilters(
+            [...$this->resolveCineSrc($tmdbId, $mediaType, $season, $episode), ...$sources],
+        );
     }
 
     /**
-     * Select the best server index based on user history, provider reliability, and error tracking.
+     * @param  array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool}>  $sources
+     * @return array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool}>
+     */
+    private function applyUserSourceFilters(array $sources): array
+    {
+        if (! auth()->check()) {
+            return $sources;
+        }
+
+        $prefs = auth()->user()->preferences ?? [];
+        $excluded = UserPreferences::get($prefs, 'excluded_providers', []);
+        $excluded = is_array($excluded) ? $excluded : [];
+
+        if ($excluded !== []) {
+            $sources = array_values(array_filter(
+                $sources,
+                fn (array $source): bool => ! in_array($source['provider'] ?? '', $excluded, true),
+            ));
+        }
+
+        if (! UserPreferences::bool($prefs, 'show_trailer_in_servers', true)) {
+            $sources = array_values(array_filter(
+                $sources,
+                fn (array $source): bool => ($source['type'] ?? '') !== 'youtube',
+            ));
+        }
+
+        return $sources;
+    }
+
+    /**
+     * Select the best server index based on user history, provider reliability, time-of-day analytics, and error tracking.
      */
     public function recommendServer(int $tmdbId, string $mediaType, ?int $season, ?int $episode): int
     {
@@ -69,20 +104,29 @@ class SourceResolver
             return 0;
         }
 
+        $prefs = auth()->check() ? (auth()->user()->preferences ?? []) : [];
+        $rememberLastServer = UserPreferences::bool($prefs, 'remember_last_server', true);
+        $useProviderScores = UserPreferences::bool($prefs, 'use_provider_scores', true);
+        $preferHlsDirect = UserPreferences::bool($prefs, 'prefer_hls_direct', false);
+
         $userLastServer = null;
         $defaultSource = null;
 
         if (auth()->check()) {
             $user = auth()->user();
-            $history = $user->watchHistory()
-                ->where('tmdb_id', $tmdbId)
-                ->where('media_type', $mediaType)
-                ->first();
-            $userLastServer = $history?->last_server;
+            if ($rememberLastServer) {
+                $history = $user->watchHistory()
+                    ->where('tmdb_id', $tmdbId)
+                    ->where('media_type', $mediaType)
+                    ->first();
+                $userLastServer = $history?->last_server;
+            }
             $defaultSource = $user->preferences['default_source'] ?? null;
         }
 
         $failedProviders = Cache::get('failed_providers', []);
+        $hourlyScores = $useProviderScores ? $this->getHourlyScores() : [];
+        $regionScores = $useProviderScores ? $this->getRegionScores() : [];
 
         $bestIndex = 0;
         $bestScore = -1;
@@ -93,20 +137,41 @@ class SourceResolver
             }
 
             $provider = $source['provider'] ?? '';
-            $score = self::PROVIDER_SCORES[$provider] ?? 50;
 
-            if ($provider === $userLastServer) {
-                $score += 20;
+            if (! $useProviderScores) {
+                $score = 100 - $i;
+            } else {
+                $score = self::PROVIDER_SCORES[$provider] ?? 50;
+
+                if ($provider === $userLastServer) {
+                    $score += 20;
+                }
+
+                if ($provider === $defaultSource) {
+                    $score += 15;
+                }
+
+                if ($preferHlsDirect && $provider === 'CineSrc Direct') {
+                    $score += 25;
+                }
+
+                if (isset($hourlyScores[$provider])) {
+                    $score += $hourlyScores[$provider];
+                }
+
+                if (isset($regionScores[$provider])) {
+                    $score += $regionScores[$provider];
+                }
+
+                if (isset($failedProviders[$provider])) {
+                    $failedAt = $failedProviders[$provider];
+                    $minutesAgo = (time() - $failedAt) / 60;
+                    $score -= max(0, (int) (30 - $minutesAgo));
+                }
             }
 
-            if ($provider === $defaultSource) {
-                $score += 15;
-            }
-
-            if (isset($failedProviders[$provider])) {
-                $failedAt = $failedProviders[$provider];
-                $minutesAgo = (time() - $failedAt) / 60;
-                $score -= max(0, (int) (30 - $minutesAgo));
+            if ($preferHlsDirect && ! $useProviderScores && $provider === 'CineSrc Direct') {
+                $score += 50;
             }
 
             if ($score > $bestScore) {
@@ -123,6 +188,18 @@ class SourceResolver
         $failed = Cache::get('failed_providers', []);
         $failed[$provider] = time();
         Cache::put('failed_providers', $failed, now()->addMinutes(30));
+
+        $this->recordAnalytic($provider, 'failure');
+    }
+
+    public function reportSuccess(string $provider): void
+    {
+        $this->recordAnalytic($provider, 'success');
+    }
+
+    public function reportBuffering(string $provider, int $loadTimeMs = 0): void
+    {
+        $this->recordAnalytic($provider, 'buffer', $loadTimeMs);
     }
 
     /**
@@ -164,6 +241,157 @@ class SourceResolver
     }
 
     /**
+     * Pre-warm source cache for a list of TMDB IDs.
+     *
+     * @param  array<int, array{id: int, type: string}>  $items
+     */
+    public function preWarm(array $items): int
+    {
+        $warmed = 0;
+
+        foreach ($items as $item) {
+            $cacheKey = "sources.{$item['type']}.{$item['id']}..";
+            if (Cache::has($cacheKey)) {
+                continue;
+            }
+
+            $this->resolve($item['id'], $item['type']);
+            $warmed++;
+        }
+
+        return $warmed;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    public function getProviderHealth(): array
+    {
+        $failed = Cache::get('failed_providers', []);
+        $health = [];
+
+        foreach (array_keys(self::PROVIDER_SCORES) as $provider) {
+            if (! isset($failed[$provider])) {
+                $health[$provider] = 100;
+
+                continue;
+            }
+
+            $minutesAgo = (time() - $failed[$provider]) / 60;
+            $health[$provider] = $minutesAgo > 15 ? 75 : ($minutesAgo > 5 ? 50 : 25);
+        }
+
+        return $health;
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function getHourlyScores(): array
+    {
+        $hour = (int) now()->format('G');
+
+        return Cache::remember("provider_hourly_scores.{$hour}", now()->addMinutes(15), function () use ($hour): array {
+            $analytics = ProviderAnalytic::where('hour_bucket', $hour)
+                ->where('date', '>=', now()->subDays(7)->toDateString())
+                ->selectRaw('provider, SUM(success_count) as wins, SUM(failure_count) as fails, AVG(avg_load_ms) as load_ms')
+                ->groupBy('provider')
+                ->get();
+
+            $scores = [];
+            foreach ($analytics as $row) {
+                $total = $row->wins + $row->fails;
+                if ($total < 5) {
+                    continue;
+                }
+
+                $successRate = $row->wins / $total;
+                $loadPenalty = min(10, (int) ($row->load_ms / 1000));
+                $scores[$row->provider] = (int) round($successRate * 15) - $loadPenalty;
+            }
+
+            return $scores;
+        });
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function getRegionScores(): array
+    {
+        $region = $this->detectRegion();
+
+        return Cache::remember("provider_region_scores.{$region}", now()->addMinutes(30), function () use ($region): array {
+            $analytics = ProviderAnalytic::where('region', $region)
+                ->where('date', '>=', now()->subDays(7)->toDateString())
+                ->selectRaw('provider, SUM(success_count) as wins, SUM(failure_count) as fails, SUM(buffer_count) as buffers')
+                ->groupBy('provider')
+                ->get();
+
+            $scores = [];
+            foreach ($analytics as $row) {
+                $total = $row->wins + $row->fails;
+                if ($total < 5) {
+                    continue;
+                }
+
+                $successRate = $row->wins / $total;
+                $bufferRate = $total > 0 ? $row->buffers / $total : 0;
+                $scores[$row->provider] = (int) round($successRate * 10) - (int) round($bufferRate * 8);
+            }
+
+            return $scores;
+        });
+    }
+
+    private function recordAnalytic(string $provider, string $event, int $loadTimeMs = 0): void
+    {
+        $hour = (int) now()->format('G');
+        $region = $this->detectRegion();
+        $date = now()->toDateString();
+
+        $record = ProviderAnalytic::firstOrCreate(
+            ['provider' => $provider, 'region' => $region, 'hour_bucket' => $hour, 'date' => $date],
+            ['success_count' => 0, 'failure_count' => 0, 'buffer_count' => 0, 'avg_load_ms' => 0],
+        );
+
+        match ($event) {
+            'success' => $record->increment('success_count'),
+            'failure' => $record->increment('failure_count'),
+            'buffer' => $record->increment('buffer_count'),
+            default => null,
+        };
+
+        if ($loadTimeMs > 0 && $record->success_count > 0) {
+            $currentAvg = $record->avg_load_ms;
+            $newAvg = (int) round(($currentAvg * ($record->success_count - 1) + $loadTimeMs) / $record->success_count);
+            $record->update(['avg_load_ms' => $newAvg]);
+        }
+    }
+
+    private function detectRegion(): string
+    {
+        $ip = request()->ip();
+
+        if ($ip === '127.0.0.1' || $ip === '::1') {
+            return 'local';
+        }
+
+        return Cache::remember("geo_region.{$ip}", now()->addHours(24), function (): string {
+            $timezone = config('app.timezone', 'UTC');
+
+            return match (true) {
+                str_contains($timezone, 'America') => 'NA',
+                str_contains($timezone, 'Europe') => 'EU',
+                str_contains($timezone, 'Asia') => 'AS',
+                str_contains($timezone, 'Africa') => 'AF',
+                str_contains($timezone, 'Australia'), str_contains($timezone, 'Pacific') => 'OC',
+                default => 'unknown',
+            };
+        });
+    }
+
+    /**
      * @return array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool}>
      */
     private function resolveCineSrc(int $tmdbId, string $mediaType, ?int $season, ?int $episode): array
@@ -201,6 +429,11 @@ class SourceResolver
      *     quality?: string,
      *     autoskip?: bool,
      *     autonext?: bool,
+     *     autoplay?: bool,
+     *     muted?: bool,
+     *     continue_prompt?: bool,
+     *     seek?: int,
+     *     back?: string|null,
      * }
      */
     private function cineSrcOptions(int $tmdbId, string $mediaType): array
@@ -213,6 +446,8 @@ class SourceResolver
 
         $user = auth()->user();
         $prefs = $user->preferences ?? [];
+        $rememberLastServer = UserPreferences::bool($prefs, 'remember_last_server', true);
+
         $history = $user->watchHistory()
             ->where('tmdb_id', $tmdbId)
             ->where('media_type', $mediaType)
@@ -223,7 +458,7 @@ class SourceResolver
                 $options['progress_seconds'] = $history->progress_seconds;
             }
 
-            if (is_string($history->cinesrc_server_id) && $history->cinesrc_server_id !== '') {
+            if ($rememberLastServer && is_string($history->cinesrc_server_id) && $history->cinesrc_server_id !== '') {
                 $options['cinesrc_server_id'] = $history->cinesrc_server_id;
             }
         }
@@ -239,6 +474,20 @@ class SourceResolver
 
         if (array_key_exists('cinesrc_autonext', $prefs)) {
             $options['autonext'] = (bool) $prefs['cinesrc_autonext'];
+        }
+
+        $options['autoplay'] = UserPreferences::bool($prefs, 'autoplay_on_watch', true);
+        $options['muted'] = UserPreferences::bool($prefs, 'start_muted', false);
+        $options['continue_prompt'] = UserPreferences::bool($prefs, 'resume_prompt', true);
+
+        $seek = (int) UserPreferences::get($prefs, 'cinesrc_seek', 10);
+        if (in_array($seek, [5, 10, 15, 30], true)) {
+            $options['seek'] = $seek;
+        }
+
+        if (array_key_exists('cinesrc_back', $prefs)) {
+            $back = $prefs['cinesrc_back'];
+            $options['back'] = is_string($back) ? $back : 'close';
         }
 
         return $options;
@@ -298,7 +547,6 @@ class SourceResolver
                 }
             }
         } catch (\Throwable) {
-            // Fallback silently
         }
 
         return [];

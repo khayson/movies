@@ -17,6 +17,7 @@ class CineSrcEmbed
      *     muted?: bool,
      *     continue_prompt?: bool|null,
      *     back?: string|null,
+     *     seek?: int,
      * }  $options
      */
     public function buildUrl(
@@ -48,15 +49,16 @@ class CineSrcEmbed
      *     muted?: bool,
      *     continue_prompt?: bool|null,
      *     back?: string|null,
+     *     seek?: int,
      * }  $options
      * @return array<string, bool|int|string>
      */
     private function defaultQuery(string $mediaType, ?int $season, ?int $episode, array $options): array
     {
         $query = [
-            'color' => (string) config('sources.cinesrc.color', '%23d97706'),
-            'seek' => (int) config('sources.cinesrc.seek', 10),
-            'autoplay' => $options['autoplay'] ?? filter_var(config('sources.cinesrc.autoplay', true), FILTER_VALIDATE_BOOL) ? 'true' : 'false',
+            'color' => (string) config('sources.cinesrc.color', '#d97706'),
+            'seek' => (int) ($options['seek'] ?? config('sources.cinesrc.seek', 10)),
+            'autoplay' => ($options['autoplay'] ?? filter_var(config('sources.cinesrc.autoplay', true), FILTER_VALIDATE_BOOL)) ? 'true' : 'false',
         ];
 
         if ($mediaType === 'tv' && $season !== null && $episode !== null) {
@@ -101,6 +103,8 @@ class CineSrcEmbed
         $back = $options['back'] ?? config('sources.cinesrc.back');
         if (is_string($back) && $back !== '') {
             $query['back'] = $back;
+        } elseif (array_key_exists('back', $options) && ($options['back'] === '' || $options['back'] === null)) {
+            // Explicitly hide back button — omit param
         }
 
         return $query;

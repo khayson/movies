@@ -50,7 +50,7 @@ new class extends Component
 };
 ?>
 
-<div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
+<div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false" wire:poll.15s>
     {{-- Bell trigger --}}
     <button
         @click="open = !open"

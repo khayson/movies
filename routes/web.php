@@ -33,6 +33,9 @@ Route::livewire('/trailers', 'pages::trailers-hub')->name('trailers');
 Route::livewire('/leaderboard', 'pages::leaderboard')->name('leaderboard');
 Route::livewire('/feed', 'pages::activity-feed')->name('activity.feed');
 Route::livewire('/watch-parties', 'pages::watch-parties')->name('watch-parties');
+Route::livewire('/stats', 'pages::stats-dashboard')->name('stats');
+Route::livewire('/trending', 'pages::trending')->name('trending');
+Route::livewire('/quiz', 'pages::quiz')->name('quiz');
 
 Route::get('/api/search', SearchController::class)->name('api.search');
 Route::get('/api/media/{type}/{id}', [MediaCardController::class, 'show'])->name('api.media.show')->where(['type' => 'movie|tv', 'id' => '[0-9]+']);
@@ -60,6 +63,9 @@ Route::view('/architecture', 'pages.architecture')->name('architecture');
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
     Route::livewire('/notifications', 'pages::notifications')->name('notifications');
+    Route::livewire('/badges', 'pages::badges')->name('badges');
+    Route::livewire('/messages', 'pages::messages')->name('messages');
+    Route::livewire('/messages/{conversationId}', 'pages::message-thread')->name('messages.thread');
 });
 
 Route::middleware(['auth', 'verified', 'adult.verified'])->group(function () {

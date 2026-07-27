@@ -81,11 +81,27 @@ class extends Component {
 }; ?>
 
 <section class="w-full">
-    <div class="mx-auto max-w-5xl px-4 py-8 sm:px-6 lg:px-8">
+    <div class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
     @include('partials.settings-heading')
 
     <x-pages::settings.layout :heading="__('Profile')" :subheading="__('Update your name and email address')">
-        <form wire:submit="updateProfileInformation" class="my-6 w-full space-y-6">
+        <div id="settings-profile" class="mb-6 scroll-mt-28 flex items-center gap-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5">
+            <div class="flex size-14 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-amber-700 text-lg font-bold text-white">
+                {{ auth()->user()->initials() }}
+            </div>
+            <div class="min-w-0 flex-1">
+                <p class="truncate text-base font-semibold text-white">{{ auth()->user()->name }}</p>
+                <p class="truncate text-sm text-zinc-500">{{ auth()->user()->email }}</p>
+                <div class="mt-2 flex flex-wrap gap-3 text-xs text-zinc-500">
+                    <span>{{ __('Member since') }} {{ auth()->user()->created_at->format('M d, Y') }}</span>
+                    <span class="{{ auth()->user()->hasVerifiedEmail() ? 'text-emerald-400' : 'text-amber-400' }}">
+                        {{ auth()->user()->hasVerifiedEmail() ? __('Email verified') : __('Email not verified') }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <form wire:submit="updateProfileInformation" class="space-y-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-5 sm:p-6">
             <flux:input wire:model="name" :label="__('Name')" type="text" required autofocus autocomplete="name" />
 
             <div>
@@ -111,17 +127,16 @@ class extends Component {
             </div>
 
             <div class="flex items-center gap-4">
-                <div class="flex items-center justify-end">
-                    <flux:button variant="primary" type="submit" class="w-full" data-test="update-profile-button">
-                        {{ __('Save') }}
-                    </flux:button>
-                </div>
-
+                <flux:button variant="primary" type="submit" data-test="update-profile-button">
+                    {{ __('Save') }}
+                </flux:button>
             </div>
         </form>
 
         @if ($this->showDeleteUser)
-            <livewire:pages::settings.delete-user-form />
+            <div id="settings-delete-account" class="mt-8 scroll-mt-28 rounded-2xl border border-red-500/20 bg-red-500/[0.04] p-5 sm:p-6">
+                <livewire:pages::settings.delete-user-form />
+            </div>
         @endif
     </x-pages::settings.layout>
     </div>

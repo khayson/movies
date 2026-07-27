@@ -5,12 +5,15 @@ use Flux\Flux;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 new
 #[Layout('layouts.app')]
 #[Title('Notifications — StreamVault')]
 class extends Component
 {
+    use WithPagination;
+
     public function markAsRead(int $id): void
     {
         UserNotification::where('user_id', auth()->id())->findOrFail($id)->markAsRead();
@@ -35,8 +38,7 @@ class extends Component
     {
         $notifications = UserNotification::where('user_id', auth()->id())
             ->latest()
-            ->limit(50)
-            ->get();
+            ->paginate(20);
 
         $unreadCount = UserNotification::where('user_id', auth()->id())
             ->whereNull('read_at')
@@ -50,7 +52,7 @@ class extends Component
 };
 ?>
 
-<div>
+<div wire:poll.10s>
     <div class="mx-auto max-w-3xl px-4 py-8 sm:px-6 lg:px-8">
         <div class="mb-6 flex items-center justify-between">
             <h1 class="text-2xl font-bold">Notifications</h1>
@@ -104,6 +106,10 @@ class extends Component
                         </div>
                     </div>
                 @endforeach
+            </div>
+
+            <div class="mt-8">
+                {{ $notifications->links() }}
             </div>
         @endif
     </div>

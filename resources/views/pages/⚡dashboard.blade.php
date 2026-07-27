@@ -39,7 +39,9 @@ class extends Component
 
         try {
             $prefs = $user->preferences ?? [];
-            $preferredType = $prefs['preferred_type'] ?? 'all';
+            $preferredType = \App\Support\UserPreferences::bool($prefs, 'disable_content_personalization', false)
+                ? 'all'
+                : ($prefs['preferred_type'] ?? 'all');
             $trendingType = $preferredType === 'all' ? 'all' : ($preferredType === 'tv' ? 'tv' : 'movie');
 
             $hour = (int) now()->format('G');
@@ -131,13 +133,55 @@ class extends Component
             ->get();
 
         $recommendations = [];
+        $recSource = '';
         if ($watchHistory->isNotEmpty()) {
-            $lastWatched = $watchHistory->first();
+            $sources = $watchHistory->take(3);
+            $seenRecIds = [];
+            foreach ($sources as $source) {
+                try {
+                    $details = $tmdb->details($source->media_type, $source->tmdb_id);
+                    foreach (array_merge($details['recommendations']['results'] ?? [], $details['similar']['results'] ?? []) as $rec) {
+                        $recKey = ($rec['media_type'] ?? $source->media_type).'-'.$rec['id'];
+                        if (! isset($seenRecIds[$recKey])) {
+                            $seenRecIds[$recKey] = true;
+                            $rec['media_type'] = $rec['media_type'] ?? $source->media_type;
+                            $recommendations[] = $rec;
+                        }
+                    }
+                } catch (\Throwable) {
+                }
+            }
+            shuffle($recommendations);
+            $recommendations = array_slice($recommendations, 0, 12);
+            $recSource = $sources->first()->title ?? '';
+        }
 
+        $tvProgress = [];
+        $showsInProgress = $user->watchHistory()
+            ->where('media_type', 'tv')
+            ->latest('updated_at')
+            ->get()
+            ->unique('tmdb_id')
+            ->take(6);
+        foreach ($showsInProgress as $show) {
+            $episodesWatched = $user->episodeWatches()->where('tmdb_id', $show->tmdb_id)->count();
+            $totalEpisodes = 0;
             try {
-                $details = $tmdb->details($lastWatched->media_type, $lastWatched->tmdb_id);
-                $recommendations = array_slice($details['recommendations']['results'] ?? $details['similar']['results'] ?? [], 0, 12);
+                $showDetails = $tmdb->details('tv', $show->tmdb_id);
+                $totalEpisodes = $showDetails['number_of_episodes'] ?? 0;
             } catch (\Throwable) {
+            }
+            if ($totalEpisodes > 0 && $episodesWatched > 0 && $episodesWatched < $totalEpisodes) {
+                $tvProgress[] = [
+                    'tmdb_id' => $show->tmdb_id,
+                    'title' => $show->title,
+                    'poster_path' => $show->poster_path,
+                    'episodes_watched' => $episodesWatched,
+                    'total_episodes' => $totalEpisodes,
+                    'percent' => round(($episodesWatched / $totalEpisodes) * 100),
+                    'season' => $show->season,
+                    'episode' => $show->episode,
+                ];
             }
         }
 
@@ -158,9 +202,12 @@ class extends Component
             'genreMap' => $genreMap,
             'parties' => $parties,
             'watchHistory' => $watchHistory,
+            'showContinueWatching' => \App\Support\UserPreferences::bool($user->preferences, 'show_continue_watching', true),
             'watchlistItems' => $watchlistItems,
             'favorites' => $favorites,
             'recommendations' => $recommendations,
+            'recSource' => $recSource,
+            'tvProgress' => $tvProgress,
             'friendsWatchingCount' => $friendsWatchingCount,
         ];
     }
@@ -527,7 +574,7 @@ class extends Component
     @endif
 
     {{-- Continue Watching --}}
-    @if($watchHistory->isNotEmpty())
+    @if($showContinueWatching && $watchHistory->isNotEmpty())
         <section class="mb-8">
             <div class="mb-4 flex items-center gap-3">
                 <h2 class="text-xl font-bold tracking-tight text-white">Continue Watching</h2>
@@ -583,9 +630,44 @@ class extends Component
         </section>
     @endif
 
+    {{-- TV Show Progress --}}
+    @if(count($tvProgress) > 0)
+        <section class="mb-8">
+            <div class="mb-4 flex items-center gap-3">
+                <h2 class="text-xl font-bold tracking-tight text-white">Episode Progress</h2>
+                <span class="size-2.5 rounded-full bg-emerald-500 shadow-sm shadow-emerald-500/50"></span>
+                <div class="h-px flex-1 bg-gradient-to-r from-white/[0.06] to-transparent"></div>
+            </div>
+            <div class="scrollbar-hide -mx-4 flex gap-4 overflow-x-auto px-4 pb-2">
+                @foreach($tvProgress as $show)
+                    <a href="{{ route('tv.detail', $show['tmdb_id']) }}" class="group w-36 shrink-0 sm:w-40" wire:navigate>
+                        <div class="relative overflow-hidden rounded-xl border border-white/[0.06] transition group-hover:border-white/[0.12]">
+                            @if($show['poster_path'])
+                                <img src="https://image.tmdb.org/t/p/w342{{ $show['poster_path'] }}" alt="{{ $show['title'] }}" class="aspect-[2/3] w-full object-cover">
+                            @else
+                                <div class="flex aspect-[2/3] w-full items-center justify-center bg-zinc-800 text-zinc-600 text-xs">No Poster</div>
+                            @endif
+                            <div class="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/90 to-transparent p-3 pt-8">
+                                <div class="mb-1.5 h-1 overflow-hidden rounded-full bg-white/[0.15]">
+                                    <div class="h-full rounded-full bg-emerald-500" style="width: {{ $show['percent'] }}%"></div>
+                                </div>
+                                <p class="text-[10px] font-medium tabular-nums text-zinc-300">{{ $show['episodes_watched'] }}/{{ $show['total_episodes'] }} episodes</p>
+                            </div>
+                        </div>
+                        <p class="mt-2 truncate text-sm font-medium text-zinc-300 group-hover:text-white">{{ $show['title'] }}</p>
+                    </a>
+                @endforeach
+            </div>
+        </section>
+    @endif
+
     {{-- Recommendations --}}
     @if(count($recommendations) > 0)
-        @include('partials.media-row', ['title' => 'Recommended for You', 'items' => $recommendations, 'style' => 'scroll'])
+        @include('partials.media-row', [
+            'title' => $recSource ? "Because you watched {$recSource}" : 'Recommended for You',
+            'items' => $recommendations,
+            'style' => 'scroll',
+        ])
     @endif
 
     {{-- Trending Today --}}
