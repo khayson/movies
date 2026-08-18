@@ -25,6 +25,12 @@ class extends Component
 
     public bool $showAdultContent = false;
 
+    public bool $adultLockSession = true;
+
+    public bool $adultStealthMode = false;
+
+    public bool $adultBlurPreviews = true;
+
     public string $streamQuality = '';
 
     public bool $cinesrcAutoskip = false;
@@ -77,6 +83,9 @@ class extends Component
         $this->emailNotifications = UserPreferences::bool($prefs, 'email_notifications', true);
         $this->autoplayTrailers = UserPreferences::bool($prefs, 'autoplay_trailers', true);
         $this->showAdultContent = UserPreferences::bool($prefs, 'show_adult_content', false);
+        $this->adultLockSession = UserPreferences::bool($prefs, 'adult_lock_session', true);
+        $this->adultStealthMode = UserPreferences::bool($prefs, 'adult_stealth_mode', false);
+        $this->adultBlurPreviews = UserPreferences::bool($prefs, 'adult_blur_previews', true);
         $this->streamQuality = (string) UserPreferences::get($prefs, 'stream_quality', '');
         $this->cinesrcAutoskip = UserPreferences::bool($prefs, 'cinesrc_autoskip', false);
         $this->cinesrcAutonext = UserPreferences::bool($prefs, 'cinesrc_autonext', true);
@@ -136,6 +145,9 @@ class extends Component
                 'email_notifications' => $this->emailNotifications,
                 'autoplay_trailers' => $this->autoplayTrailers,
                 'show_adult_content' => $this->showAdultContent,
+                'adult_lock_session' => $this->showAdultContent && $this->adultLockSession,
+                'adult_stealth_mode' => $this->showAdultContent && $this->adultStealthMode,
+                'adult_blur_previews' => $this->adultBlurPreviews,
                 'stream_quality' => $this->streamQuality,
                 'cinesrc_autoskip' => $this->cinesrcAutoskip,
                 'cinesrc_autonext' => $this->cinesrcAutonext,
@@ -343,7 +355,14 @@ class extends Component
                 @enderror
 
                 @if($isAdult)
-                    <flux:switch wire:model="showAdultContent" :label="__('Show Adult Content')" :description="__('Include adult-rated titles in browse and search results')" />
+                    <flux:switch wire:model.live="showAdultContent" :label="__('Show Adult Content')" :description="__('Include adult-rated titles in browse and search results')" />
+                    @if($showAdultContent)
+                        <div class="space-y-4 rounded-xl border border-red-500/15 bg-red-950/20 p-4">
+                            <flux:switch wire:model="adultLockSession" :label="__('Require password to open 18+')" :description="__('Re-confirm your password before entering the adult vault')" />
+                            <flux:switch wire:model="adultStealthMode" :label="__('Stealth mode')" :description="__('Keep 18+ watches off continue watching, stats, streaks, and the public leaderboard')" />
+                            <flux:switch wire:model="adultBlurPreviews" :label="__('Blur thumbnails')" :description="__('Blur adult artwork until you hover or focus a card')" />
+                        </div>
+                    @endif
                 @elseif(!empty($dateOfBirth))
                     <div class="flex items-center gap-2 rounded-lg border border-red-800/50 bg-red-950/30 px-3 py-2">
                         <p class="text-xs text-red-400">{{ __('You must be 18 or older to access adult content.') }}</p>

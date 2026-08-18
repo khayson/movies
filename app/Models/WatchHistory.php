@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\WatchHistoryFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -24,8 +25,9 @@ use Illuminate\Support\Carbon;
  * @property string|null $cinesrc_server_id
  * @property string|null $device_name
  * @property Carbon|null $last_watched_at
+ * @property bool $is_private
  */
-#[Fillable(['user_id', 'tmdb_id', 'media_type', 'title', 'poster_path', 'progress_seconds', 'duration_seconds', 'season', 'episode', 'last_server', 'cinesrc_server_id', 'device_name', 'last_watched_at'])]
+#[Fillable(['user_id', 'tmdb_id', 'media_type', 'title', 'poster_path', 'progress_seconds', 'duration_seconds', 'season', 'episode', 'last_server', 'cinesrc_server_id', 'device_name', 'last_watched_at', 'is_private'])]
 class WatchHistory extends Model
 {
     /** @use HasFactory<WatchHistoryFactory> */
@@ -46,7 +48,17 @@ class WatchHistory extends Model
     {
         return [
             'last_watched_at' => 'datetime',
+            'is_private' => 'boolean',
         ];
+    }
+
+    /**
+     * @param  Builder<WatchHistory>  $query
+     * @return Builder<WatchHistory>
+     */
+    public function scopeVisible(Builder $query): Builder
+    {
+        return $query->where('is_private', false);
     }
 
     public function progressPercent(): int

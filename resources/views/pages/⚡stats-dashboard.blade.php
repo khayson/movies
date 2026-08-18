@@ -18,15 +18,15 @@ class extends Component
         $user = auth()->user();
         $streak = $streakService->calculate($user);
 
-        $totalWatched = $user->watchHistory()->count();
+        $totalWatched = $user->watchHistory()->visible()->count();
         $totalReviews = $user->reviews()->count();
         $totalFavorites = $user->favorites()->count();
         $totalCollections = $user->collections()->count();
 
-        $totalWatchTimeSeconds = $user->watchHistory()->sum('progress_seconds');
+        $totalWatchTimeSeconds = $user->watchHistory()->visible()->sum('progress_seconds');
         $totalHours = round($totalWatchTimeSeconds / 3600, 1);
 
-        $recentHistory = $user->watchHistory()->latest('updated_at')->take(20)->get();
+        $recentHistory = $user->watchHistory()->visible()->latest('updated_at')->take(20)->get();
         $genreCounts = [];
         foreach ($recentHistory as $item) {
             try {
@@ -58,6 +58,7 @@ class extends Component
             $monthKey = $date->format('Y-m');
             $monthLabel = $date->format('M');
             $count = $user->watchHistory()
+                ->visible()
                 ->whereYear('created_at', $date->year)
                 ->whereMonth('created_at', $date->month)
                 ->count();
@@ -65,8 +66,8 @@ class extends Component
         }
         $maxMonthly = max(array_column($monthlyData, 'count') ?: [1]);
 
-        $movieCount = $user->watchHistory()->where('media_type', 'movie')->count();
-        $tvCount = $user->watchHistory()->where('media_type', 'tv')->count();
+        $movieCount = $user->watchHistory()->visible()->where('media_type', 'movie')->count();
+        $tvCount = $user->watchHistory()->visible()->where('media_type', 'tv')->count();
 
         return [
             'totalWatched' => $totalWatched,

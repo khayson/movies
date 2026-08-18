@@ -60,7 +60,7 @@ class extends Component
     @php $name = $person['name'] ?? 'Unknown'; @endphp
 
     {{-- Cinematic Backdrop --}}
-    <div class="relative h-[40vh] min-h-[300px] w-full overflow-hidden">
+    <div class="hero-bleed relative h-[40vh] min-h-[300px] w-full overflow-hidden lg:h-[calc(40vh_+_4rem)] lg:min-h-[364px]">
         @if($backdrop)
             <img src="{{ app(Tmdb::class)->backdropUrl($backdrop) }}" alt="" class="absolute inset-0 h-full w-full object-cover opacity-40">
         @endif

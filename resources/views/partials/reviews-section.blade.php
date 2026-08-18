@@ -5,6 +5,12 @@
     $tmdbRating = $tmdbRating ?? null;
     $tmdbVoteCount = $tmdbVoteCount ?? 0;
     $imdbId = $imdbId ?? null;
+    $imdbRating = $imdbRating ?? null;
+    $imdbVotes = $imdbVotes ?? null;
+    $metascore = $metascore ?? null;
+    $rtTomatometer = $rtTomatometer ?? null;
+    $rtAudience = $rtAudience ?? null;
+    $rtConsensus = $rtConsensus ?? null;
     $communityCount = $reviews->count();
     $tmdbReviewCount = count($tmdbReviews);
     $totalReviews = $communityCount + $tmdbReviewCount;
@@ -17,7 +23,7 @@
     </h2>
 
     {{-- Ratings Overview --}}
-    <div class="mb-8 grid gap-4 sm:grid-cols-3">
+    <div class="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {{-- TMDB Rating --}}
         <div class="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5">
             <div class="mb-3 flex items-center gap-2">
@@ -31,6 +37,87 @@
                 <p class="mt-1 text-xs text-zinc-500">{{ number_format($tmdbVoteCount) }} votes</p>
             @else
                 <p class="text-sm text-zinc-500">Not rated yet</p>
+            @endif
+        </div>
+
+        {{-- IMDb Rating --}}
+        <div class="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5">
+            <div class="mb-3 flex items-center gap-2">
+                <div class="flex size-8 items-center justify-center rounded-lg bg-yellow-500/15">
+                    <span class="text-xs font-black text-yellow-400">IMDb</span>
+                </div>
+                <span class="text-sm font-semibold text-zinc-300">IMDb</span>
+            </div>
+            @if($imdbRating)
+                <p class="text-3xl font-bold text-white">{{ number_format($imdbRating, 1) }}<span class="text-base font-normal text-zinc-500">/10</span></p>
+                <p class="mt-1 text-xs text-zinc-500">
+                    @if($imdbVotes)
+                        {{ number_format($imdbVotes) }} votes
+                    @else
+                        From IMDb
+                    @endif
+                    @if($imdbId)
+                        · <a href="https://www.imdb.com/title/{{ $imdbId }}/" target="_blank" rel="noopener noreferrer" class="text-yellow-400/80 hover:text-yellow-300">Open</a>
+                    @endif
+                </p>
+            @elseif($imdbId)
+                <a href="https://www.imdb.com/title/{{ $imdbId }}/" target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center gap-1.5 text-sm font-medium text-yellow-400 transition hover:text-yellow-300">
+                    View on IMDb
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+                </a>
+                <p class="mt-1 text-xs text-zinc-500">Score unavailable right now</p>
+            @else
+                <p class="text-sm text-zinc-500">Not available</p>
+            @endif
+        </div>
+
+        {{-- Metascore --}}
+        <div class="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5">
+            <div class="mb-3 flex items-center gap-2">
+                <div class="flex size-8 items-center justify-center rounded-lg bg-emerald-500/15">
+                    <span class="text-[10px] font-black uppercase tracking-wide text-emerald-400">Meta</span>
+                </div>
+                <span class="text-sm font-semibold text-zinc-300">Metascore</span>
+            </div>
+            @if($metascore !== null)
+                @php
+                    $metaTone = $metascore >= 61 ? 'bg-emerald-500 text-white' : ($metascore >= 40 ? 'bg-yellow-500 text-zinc-950' : 'bg-red-500 text-white');
+                @endphp
+                <div class="flex items-end gap-3">
+                    <span class="inline-flex size-12 items-center justify-center rounded-lg text-xl font-black {{ $metaTone }}">{{ $metascore }}</span>
+                    <p class="pb-1 text-xs text-zinc-500">Critics aggregate</p>
+                </div>
+            @else
+                <p class="text-sm text-zinc-500">Not available</p>
+            @endif
+        </div>
+
+        {{-- Rotten Tomatoes --}}
+        <div class="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5">
+            <div class="mb-3 flex items-center gap-2">
+                <div class="flex size-8 items-center justify-center rounded-lg bg-red-500/15">
+                    <span class="text-[10px] font-black uppercase tracking-wide text-red-400">RT</span>
+                </div>
+                <span class="text-sm font-semibold text-zinc-300">Rotten Tomatoes</span>
+            </div>
+            @if($rtTomatometer !== null || $rtAudience !== null)
+                <div class="flex flex-wrap gap-4">
+                    @if($rtTomatometer !== null)
+                        <div>
+                            <p class="text-2xl font-bold text-white">{{ $rtTomatometer }}<span class="text-sm font-normal text-zinc-500">%</span></p>
+                            <p class="text-[11px] text-zinc-500">Tomatometer</p>
+                        </div>
+                    @endif
+                    @if($rtAudience !== null)
+                        <div>
+                            <p class="text-2xl font-bold text-white">{{ $rtAudience }}<span class="text-sm font-normal text-zinc-500">%</span></p>
+                            <p class="text-[11px] text-zinc-500">Audience</p>
+                        </div>
+                    @endif
+                </div>
+            @else
+                <p class="text-sm text-zinc-500">Not available</p>
             @endif
         </div>
 
@@ -49,27 +136,15 @@
                 <p class="text-sm text-zinc-500">No ratings yet</p>
             @endif
         </div>
-
-        {{-- IMDb Link --}}
-        <div class="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-5">
-            <div class="mb-3 flex items-center gap-2">
-                <div class="flex size-8 items-center justify-center rounded-lg bg-yellow-500/15">
-                    <span class="text-xs font-black text-yellow-400">IMDb</span>
-                </div>
-                <span class="text-sm font-semibold text-zinc-300">IMDb</span>
-            </div>
-            @if($imdbId)
-                <a href="https://www.imdb.com/title/{{ $imdbId }}/" target="_blank" rel="noopener noreferrer"
-                   class="inline-flex items-center gap-1.5 text-sm font-medium text-yellow-400 transition hover:text-yellow-300">
-                    View on IMDb
-                    <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
-                </a>
-                <p class="mt-1 text-xs text-zinc-500">See full ratings & reviews</p>
-            @else
-                <p class="text-sm text-zinc-500">Not available</p>
-            @endif
-        </div>
     </div>
+
+    @if($rtConsensus)
+        <p class="mb-8 rounded-2xl border border-white/[0.06] bg-white/[0.03] px-5 py-4 text-sm leading-relaxed text-zinc-400">
+            <span class="font-semibold text-red-400">Critics Consensus</span>
+            <span class="mx-2 text-zinc-600">·</span>
+            {{ $rtConsensus }}
+        </p>
+    @endif
 
     {{-- Tabbed Reviews --}}
     <div x-data="{ activeTab: 'all' }">

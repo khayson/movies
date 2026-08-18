@@ -65,7 +65,7 @@ class extends Component
         $user = User::findOrFail($this->userId);
 
         View::share('ogTitle', $user->name . ' — ' . config('app.name'));
-        View::share('ogDescription', $user->name . ' has watched ' . $user->watchHistory()->count() . ' titles and written ' . $user->reviews()->count() . ' reviews on ' . config('app.name') . '.');
+        View::share('ogDescription', $user->name . ' has watched ' . $user->watchHistory()->visible()->count() . ' titles and written ' . $user->reviews()->count() . ' reviews on ' . config('app.name') . '.');
         View::share('ogType', 'profile');
 
         $badgeService->checkAndAward($user);
@@ -79,7 +79,7 @@ class extends Component
         $publicCollections = $user->collections()->where('is_public', true)->withCount('items')->latest()->limit(6)->get();
 
         $stats = [
-            'watched' => $user->watchHistory()->count(),
+            'watched' => $user->watchHistory()->visible()->count(),
             'reviews' => $user->reviews()->count(),
             'favorites' => $user->favorites()->count(),
             'collections' => $user->collections()->count(),

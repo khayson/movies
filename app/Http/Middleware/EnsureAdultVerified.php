@@ -13,8 +13,21 @@ class EnsureAdultVerified
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (! $request->user()?->canViewAdultContent()) {
+        $user = $request->user();
+
+        if (! $user?->canViewAdultContent()) {
             abort(403, 'You must be 18+ with adult content enabled to access this page.');
+        }
+
+        if ($user->requiresAdultSessionLock()) {
+            $confirmedAt = (int) $request->session()->get('auth.password_confirmed_at', 0);
+            $timeout = (int) config('auth.password_timeout', 10800);
+
+            if ((time() - $confirmedAt) > $timeout) {
+                $request->session()->put('url.intended', $request->fullUrl());
+
+                return redirect()->route('password.confirm');
+            }
         }
 
         return $next($request);

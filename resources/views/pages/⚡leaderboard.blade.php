@@ -29,8 +29,8 @@ class extends Component
             ->orderByDesc('reviews_count')
             ->paginate(20, pageName: 'reviewers');
 
-        $mostActive = User::withCount('watchHistory')
-            ->has('watchHistory')
+        $mostActive = User::withCount(['watchHistory' => fn ($query) => $query->visible()])
+            ->whereHas('watchHistory', fn ($query) => $query->visible())
             ->where(function ($query) {
                 $query->whereNull('preferences->hide_from_leaderboard')
                     ->orWhere('preferences->hide_from_leaderboard', false);

@@ -29,7 +29,7 @@ class extends Component
     public function with(Tmdb $tmdb): array
     {
         $user = auth()->user();
-        $watchHistory = $user->watchHistory()->latest('updated_at')->take(12)->get();
+        $watchHistory = $user->watchHistory()->visible()->latest('updated_at')->take(12)->get();
         $watchlistItems = $user->watchlist()->latest()->get();
         $favorites = $user->favorites()->latest()->get();
 
@@ -158,6 +158,7 @@ class extends Component
 
         $tvProgress = [];
         $showsInProgress = $user->watchHistory()
+            ->visible()
             ->where('media_type', 'tv')
             ->latest('updated_at')
             ->get()

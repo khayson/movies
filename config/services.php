@@ -39,4 +39,20 @@ return [
         'key' => env('RAPIDAPI_KEY'),
     ],
 
+    'imdb' => [
+        'host' => env('IMDB_RAPIDAPI_HOST', 'imdb236.p.rapidapi.com'),
+    ],
+
+    'rottentomatoes' => [
+        'host' => env('ROTTENTOMATOES_RAPIDAPI_HOST', 'rottentomato.p.rapidapi.com'),
+    ],
+
+    'anime_db' => [
+        'host' => env('ANIME_DB_RAPIDAPI_HOST', 'anime-db.p.rapidapi.com'),
+    ],
+
+    'tvmaze' => [
+        'base_url' => env('TVMAZE_BASE_URL', 'https://api.tvmaze.com'),
+    ],
+
 ];

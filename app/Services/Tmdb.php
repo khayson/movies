@@ -2,11 +2,24 @@
 
 namespace App\Services;
 
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\PendingRequest;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Throwable;
 
 class Tmdb
 {
+    /**
+     * TMDB Animation genre (movies and TV).
+     */
+    public const ANIMATION_GENRE_ID = 16;
+
+    private bool $tmdbUnavailable = false;
+
+    public function __construct(private MetadataFallback $fallback) {}
+
     /**
      * @param  array<string, mixed>  $params
      * @return array<string, mixed>
@@ -15,18 +28,138 @@ class Tmdb
     {
         $params = $this->applyUserPreferences($params);
         $cacheKey = 'tmdb.'.md5($endpoint.serialize($params));
+        $staleKey = $cacheKey.'.stale';
         $ttl = $this->getTtl($endpoint);
 
-        /** @var array<string, mixed> */
-        return Cache::remember($cacheKey, now()->addMinutes($ttl), function () use ($endpoint, $params): array {
-            $response = Http::baseUrl(config('tmdb.base_url'))
-                ->withToken(config('tmdb.api_key'))
-                ->get($endpoint, $params)
-                ->throw();
+        if ($this->tmdbUnavailable) {
+            return $this->cachedOrFallback($endpoint, $params, $cacheKey, $staleKey);
+        }
 
+        try {
             /** @var array<string, mixed> */
-            return $response->json();
-        });
+            $payload = Cache::remember($cacheKey, now()->addMinutes($ttl), function () use ($endpoint, $params): array {
+                return $this->fetchFromHosts($endpoint, $params);
+            });
+
+            Cache::put($staleKey, $payload, now()->addDays(7));
+
+            return $payload;
+        } catch (ConnectionException $e) {
+            return $this->recoverFromUpstreamFailure($e, $endpoint, $params, $cacheKey, $staleKey);
+        } catch (RequestException $e) {
+            if (! $e->response->serverError() && $e->response->status() !== 429) {
+                throw $e;
+            }
+
+            return $this->recoverFromUpstreamFailure($e, $endpoint, $params, $cacheKey, $staleKey);
+        }
+    }
+
+    /**
+     * @param  array<string, mixed>  $params
+     * @return array<string, mixed>
+     */
+    private function fetchFromHosts(string $endpoint, array $params): array
+    {
+        $lastException = null;
+
+        foreach ($this->hosts() as $host) {
+            try {
+                $response = Http::baseUrl($host)
+                    ->withToken(config('tmdb.api_key'))
+                    ->acceptJson()
+                    ->timeout(8)
+                    ->connectTimeout(3)
+                    ->retry(1, 150, function (Throwable $exception, PendingRequest $request): bool {
+                        return $exception instanceof ConnectionException
+                            || ($exception instanceof RequestException && $exception->response->serverError());
+                    })
+                    ->get($endpoint, $params)
+                    ->throw();
+
+                /** @var array<string, mixed> */
+                return $response->json();
+            } catch (ConnectionException $e) {
+                $lastException = $e;
+
+                continue;
+            } catch (RequestException $e) {
+                if (! $e->response->serverError() && $e->response->status() !== 429) {
+                    throw $e;
+                }
+
+                $lastException = $e;
+
+                continue;
+            }
+        }
+
+        throw $lastException ?? new ConnectionException('All TMDB hosts failed.');
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function hosts(): array
+    {
+        $configured = config('tmdb.base_urls', [config('tmdb.base_url')]);
+
+        if (! is_array($configured)) {
+            $configured = [config('tmdb.base_url')];
+        }
+
+        /** @var list<string> $hosts */
+        $hosts = array_values(array_unique(array_filter(
+            $configured,
+            fn ($host): bool => is_string($host) && $host !== ''
+        )));
+
+        return $hosts !== [] ? $hosts : ['https://api.themoviedb.org/3'];
+    }
+
+    /**
+     * @param  array<string, mixed>  $params
+     * @return array<string, mixed>
+     */
+    private function recoverFromUpstreamFailure(Throwable $e, string $endpoint, array $params, string $cacheKey, string $staleKey): array
+    {
+        $this->tmdbUnavailable = true;
+        report($e);
+
+        return $this->cachedOrFallback($endpoint, $params, $cacheKey, $staleKey);
+    }
+
+    /**
+     * @param  array<string, mixed>  $params
+     * @return array<string, mixed>
+     */
+    private function cachedOrFallback(string $endpoint, array $params, string $cacheKey, string $staleKey): array
+    {
+        $cached = Cache::get($staleKey) ?? Cache::get($cacheKey);
+
+        if (is_array($cached) && $this->hasUsablePayload($cached)) {
+            return $cached;
+        }
+
+        $fallback = $this->fallback->forEndpoint($endpoint, $params);
+
+        if (is_array($fallback) && $this->hasUsablePayload($fallback)) {
+            return $fallback;
+        }
+
+        return is_array($cached) ? $cached : ['results' => []];
+    }
+
+    /**
+     * @param  array<string, mixed>  $payload
+     */
+    private function hasUsablePayload(array $payload): bool
+    {
+        if (isset($payload['id']) || isset($payload['title']) || isset($payload['name'])) {
+            return true;
+        }
+
+        return isset($payload['results']) && is_array($payload['results']) && $payload['results'] !== [];
     }
 
     /**
@@ -84,8 +217,65 @@ class Tmdb
     public function details(string $type, int $id): array
     {
         return $this->get("/{$type}/{$id}", [
-            'append_to_response' => 'credits,videos,similar,recommendations,reviews',
+            'append_to_response' => 'credits,videos,similar,recommendations,reviews,external_ids',
         ]);
+    }
+
+    /**
+     * Related titles for detail pages.
+     *
+     * TMDB "similar" is keyword/genre based and often returns older catalog titles.
+     * Prefer "recommendations" (collaborative), then fill from similar newest-first.
+     *
+     * @param  array<string, mixed>  $details
+     * @return list<array<string, mixed>>
+     */
+    public function relatedFromDetails(array $details, int $limit = 12): array
+    {
+        /** @var list<array<string, mixed>> $recommendations */
+        $recommendations = array_values(array_filter(
+            $details['recommendations']['results'] ?? [],
+            'is_array'
+        ));
+
+        /** @var list<array<string, mixed>> $similar */
+        $similar = array_values(array_filter(
+            $details['similar']['results'] ?? [],
+            'is_array'
+        ));
+
+        usort($similar, function (array $a, array $b): int {
+            $dateA = (string) ($a['release_date'] ?? $a['first_air_date'] ?? '');
+            $dateB = (string) ($b['release_date'] ?? $b['first_air_date'] ?? '');
+
+            return $dateB <=> $dateA;
+        });
+
+        $merged = [];
+        $seen = [];
+
+        foreach (array_merge($recommendations, $similar) as $item) {
+            $id = $item['id'] ?? null;
+
+            if (! is_numeric($id)) {
+                continue;
+            }
+
+            $id = (int) $id;
+
+            if (isset($seen[$id])) {
+                continue;
+            }
+
+            $seen[$id] = true;
+            $merged[] = $item;
+
+            if (count($merged) >= $limit) {
+                break;
+            }
+        }
+
+        return $merged;
     }
 
     /**
@@ -168,6 +358,14 @@ class Tmdb
     /**
      * @return array<string, mixed>
      */
+    public function animation(string $type = 'tv', int $page = 1): array
+    {
+        return $this->discoverByGenre($type, self::ANIMATION_GENRE_ID, $page);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
     public function discoverByGenre(string $type, int $genreId, int $page = 1): array
     {
         return $this->get("/discover/{$type}", [
@@ -209,6 +407,14 @@ class Tmdb
 
     public function imageUrl(string $path, string $size = 'w500'): string
     {
+        if ($path === '') {
+            return '';
+        }
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
+        }
+
         return config('tmdb.image_base_url')."/{$size}{$path}";
     }
 

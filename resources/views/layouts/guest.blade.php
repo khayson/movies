@@ -5,7 +5,16 @@
         <style>
             .scrollbar-hide::-webkit-scrollbar { display: none; }
             .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-            .nav-glass { background: rgba(9, 9, 11, 0.7); backdrop-filter: blur(20px) saturate(1.8); -webkit-backdrop-filter: blur(20px) saturate(1.8); }
+            /* At the top of the page the nav floats over the hero as a soft scrim, so the artwork
+               is never cut off; once scrolled it becomes the frosted bar. */
+            .site-nav { background: linear-gradient(to bottom, rgba(0, 0, 0, 0.7) 0%, rgba(0, 0, 0, 0.25) 60%, rgba(0, 0, 0, 0) 100%); border-bottom: 1px solid transparent; transition: background 0.3s ease, border-color 0.3s ease; }
+            .site-nav.is-scrolled { background: transparent; border-bottom-color: rgba(255, 255, 255, 0.06); }
+            /* Blur lives on a pseudo-element: backdrop-filter on the nav itself would make it
+               the containing block for its position:fixed descendants (dropdown panels/overlays). */
+            .site-nav.is-scrolled::before { content: ''; position: absolute; inset: 0; z-index: -1; background: rgba(9, 9, 11, 0.7); backdrop-filter: blur(20px) saturate(1.8); -webkit-backdrop-filter: blur(20px) saturate(1.8); }
+            /* Cinematic heroes run up underneath the overlay nav. Only on lg+, where the nav is a
+               single 4rem row; the mobile nav has a second row and would cover hero content. */
+            @media (min-width: 1024px) { .hero-bleed { margin-top: -4rem; } }
             .nav-item { position: relative; }
             .nav-item::after { content: ''; position: absolute; bottom: -1px; left: 50%; width: 0; height: 2px; background: linear-gradient(90deg, #f59e0b, #d97706); transition: all 0.3s ease; transform: translateX(-50%); border-radius: 1px; }
             .nav-item.active::after, .nav-item:hover::after { width: 100%; }
@@ -20,7 +29,13 @@
     </head>
     <body class="min-h-screen bg-zinc-950 text-white antialiased">
         {{-- Navigation --}}
-        <nav class="nav-glass sticky top-0 z-50 border-b border-white/[0.06]">
+        <nav
+            x-data="{ scrolled: false }"
+            x-init="scrolled = window.scrollY > 8"
+            @scroll.window="scrolled = window.scrollY > 8"
+            :class="scrolled && 'is-scrolled'"
+            class="site-nav sticky top-0 z-50"
+        >
             <div class="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
                 {{-- Left: Logo + Nav --}}
                 <div class="flex items-center gap-8">
@@ -38,6 +53,7 @@
                             $navItems = [
                                 ['route' => 'movies.index', 'label' => 'Movies', 'match' => 'movies.*'],
                                 ['route' => 'tv.index', 'label' => 'TV Shows', 'match' => 'tv.*'],
+                                ['route' => 'anime.index', 'label' => 'Anime', 'match' => 'anime.*', 'accent' => 'text-fuchsia-400/90 hover:text-fuchsia-300'],
                                 ['route' => 'trending', 'label' => 'Trending', 'match' => 'trending'],
                                 ['route' => 'genres.index', 'label' => 'Genres', 'match' => 'genres.*'],
                                 ['route' => 'discover', 'label' => 'Discover', 'match' => 'discover'],
@@ -46,7 +62,7 @@
                         @endphp
                         @foreach($navItems as $nav)
                             <a href="{{ route($nav['route']) }}"
-                               class="nav-item rounded-lg px-3 py-2 text-[13px] font-medium text-zinc-400 transition-colors hover:text-white {{ request()->routeIs($nav['match']) ? 'active text-white' : '' }}"
+                               class="nav-item rounded-lg px-3 py-2 text-[13px] font-medium transition-colors {{ request()->routeIs($nav['match']) ? 'active text-white' : ($nav['accent'] ?? 'text-zinc-400 hover:text-white') }}"
                                wire:navigate>
                                 {{ $nav['label'] }}
                             </a>
@@ -54,8 +70,16 @@
                         @if(auth()->user()?->canViewAdultContent())
                             <a href="{{ route('adult.browse') }}"
                                class="nav-item rounded-lg px-3 py-2 text-[13px] font-medium text-red-400/80 transition-colors hover:text-red-400 {{ request()->routeIs('adult.*') ? 'active !text-red-400' : '' }}"
+                               title="{{ auth()->user()->adultStealthEnabled() ? __('Private vault') : __('Adult 18+') }}"
                                wire:navigate>
-                                18+
+                                @if(auth()->user()->adultStealthEnabled())
+                                    <span class="inline-flex items-center gap-1">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                                        <span class="sr-only">{{ __('Private vault') }}</span>
+                                    </span>
+                                @else
+                                    18+
+                                @endif
                             </a>
                         @endif
                     </div>
@@ -90,6 +114,7 @@
                     $mobileNav = [
                         ['route' => 'movies.index', 'label' => 'Movies', 'match' => 'movies.*'],
                         ['route' => 'tv.index', 'label' => 'TV Shows', 'match' => 'tv.*'],
+                        ['route' => 'anime.index', 'label' => 'Anime', 'match' => 'anime.*', 'accent' => 'text-fuchsia-400/90'],
                         ['route' => 'trending', 'label' => 'Trending', 'match' => 'trending'],
                         ['route' => 'genres.index', 'label' => 'Genres', 'match' => 'genres.*'],
                         ['route' => 'discover', 'label' => 'Discover', 'match' => 'discover'],
@@ -98,7 +123,7 @@
                 @endphp
                 @foreach($mobileNav as $nav)
                     <a href="{{ route($nav['route']) }}"
-                       class="nav-item whitespace-nowrap px-3 py-2.5 text-[13px] font-medium text-zinc-500 transition-colors hover:text-white {{ request()->routeIs($nav['match']) ? 'active text-amber-400' : '' }}"
+                       class="nav-item whitespace-nowrap px-3 py-2.5 text-[13px] font-medium transition-colors {{ request()->routeIs($nav['match']) ? 'active text-amber-400' : ($nav['accent'] ?? 'text-zinc-500 hover:text-white') }}"
                        wire:navigate>
                         {{ $nav['label'] }}
                     </a>
@@ -106,8 +131,16 @@
                 @if(auth()->user()?->canViewAdultContent())
                     <a href="{{ route('adult.browse') }}"
                        class="nav-item whitespace-nowrap px-3 py-2.5 text-[13px] font-medium text-red-400/80 transition-colors hover:text-red-400 {{ request()->routeIs('adult.*') ? 'active !text-red-400' : '' }}"
+                       title="{{ auth()->user()->adultStealthEnabled() ? __('Private vault') : __('Adult 18+') }}"
                        wire:navigate>
-                        18+
+                        @if(auth()->user()->adultStealthEnabled())
+                            <span class="inline-flex items-center gap-1">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" /></svg>
+                                <span class="sr-only">{{ __('Private vault') }}</span>
+                            </span>
+                        @else
+                            18+
+                        @endif
                     </a>
                 @endif
             </div>
@@ -143,6 +176,7 @@
                             <ul class="mt-3 space-y-2">
                                 <li><a href="{{ route('movies.index') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Movies</a></li>
                                 <li><a href="{{ route('tv.index') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>TV Shows</a></li>
+                                <li><a href="{{ route('anime.index') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Anime</a></li>
                                 <li><a href="{{ route('genres.index') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Genres</a></li>
                                 <li><a href="{{ route('trending') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Trending</a></li>
                                 <li><a href="{{ route('search') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Search</a></li>

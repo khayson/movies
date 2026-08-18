@@ -11,6 +11,7 @@ Route::livewire('/movies', 'pages::movie-index')->name('movies.index');
 Route::livewire('/movies/{tmdbId}', 'pages::movie-detail')->name('movies.detail');
 Route::livewire('/tv', 'pages::tv-index')->name('tv.index');
 Route::livewire('/tv/{tmdbId}', 'pages::tv-detail')->name('tv.detail');
+Route::livewire('/anime', 'pages::anime-index')->name('anime.index');
 Route::livewire('/search', 'pages::search-page')->name('search');
 Route::livewire('/watch/{type}/{tmdbId}/{season?}/{episode?}', 'pages::watch-page')->name('watch');
 

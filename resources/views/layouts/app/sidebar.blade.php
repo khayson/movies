@@ -6,6 +6,9 @@
             .scrollbar-hide::-webkit-scrollbar { display: none; }
             .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
             .sidebar-glass { background: rgba(9, 9, 11, 0.85); backdrop-filter: blur(20px) saturate(1.8); -webkit-backdrop-filter: blur(20px) saturate(1.8); }
+            /* Blur lives on a pseudo-element: backdrop-filter on the header itself would make it
+               the containing block for its position:fixed descendants (dropdown panels/overlays). */
+            .header-glass::before { content: ''; position: absolute; inset: 0; z-index: -1; background: rgba(9, 9, 11, 0.8); backdrop-filter: blur(20px) saturate(1.8); -webkit-backdrop-filter: blur(20px) saturate(1.8); }
         </style>
     </head>
     <body class="min-h-screen bg-zinc-950 text-white antialiased" x-data="{ sidebarOpen: false }">
@@ -221,7 +224,7 @@
             {{-- Main area --}}
             <div class="flex flex-1 flex-col overflow-hidden">
                 {{-- Top bar (sticky) --}}
-                <header class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-white/[0.06] bg-zinc-950/80 px-4 backdrop-blur-xl sm:px-6">
+                <header class="header-glass sticky top-0 z-40 flex h-16 shrink-0 items-center gap-3 border-b border-white/[0.06] px-4 sm:px-6">
                     {{-- Mobile hamburger --}}
                     <button @click="sidebarOpen = true" class="flex size-9 items-center justify-center rounded-lg text-zinc-400 transition-colors hover:bg-white/[0.06] hover:text-white lg:hidden">
                         <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>

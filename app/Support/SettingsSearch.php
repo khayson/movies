@@ -105,11 +105,11 @@ class SettingsSearch
             [
                 'id' => 'pref-privacy',
                 'label' => 'Privacy & maturity',
-                'description' => 'Date of birth, adult content, and leaderboard visibility',
+                'description' => 'Date of birth, adult vault, stealth mode, and leaderboard visibility',
                 'group' => 'Preferences',
                 'route' => 'preferences.edit',
                 'anchor' => 'settings-privacy',
-                'keywords' => ['privacy', 'adult', 'nsfw', 'maturity', 'age', 'birthday', 'date of birth', 'leaderboard', 'hide'],
+                'keywords' => ['privacy', 'adult', 'nsfw', 'maturity', 'age', 'birthday', 'date of birth', 'leaderboard', 'hide', 'stealth', 'blur', 'password lock', 'vault'],
             ],
             [
                 'id' => 'pref-advanced',

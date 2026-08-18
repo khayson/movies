@@ -13,6 +13,7 @@ class StreakService
     public function calculate(User $user, int $lookbackDays = 90): array
     {
         $activeDays = $user->watchHistory()
+            ->visible()
             ->where('updated_at', '>=', now()->subDays($lookbackDays))
             ->selectRaw('DATE(updated_at) as watch_date')
             ->groupBy('watch_date')

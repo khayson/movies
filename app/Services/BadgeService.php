@@ -8,7 +8,7 @@ class BadgeService
 {
     public function checkAndAward(User $user): void
     {
-        $watchCount = $user->watchHistory()->count();
+        $watchCount = $user->watchHistory()->visible()->count();
         $reviewCount = $user->reviews()->count();
         $collectionCount = $user->collections()->count();
         $favoriteCount = $user->favorites()->count();
@@ -31,6 +31,7 @@ class BadgeService
             default => 'HOUR(created_at)',
         };
         $hasNightWatch = $user->watchHistory()
+            ->visible()
             ->whereRaw("$hourExpr >= 0 AND $hourExpr < 4")
             ->exists();
         $this->awardIf($user, 'night_owl', $hasNightWatch);

@@ -92,7 +92,7 @@ new class extends Component
         x-transition:leave-start="opacity-100 translate-y-0"
         x-transition:leave-end="opacity-0 translate-y-1"
         x-cloak
-        class="fixed inset-x-3 top-[4.5rem] z-50 overflow-hidden rounded-xl border border-white/[0.08] bg-zinc-900 shadow-xl shadow-black/40 sm:absolute sm:inset-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[380px]"
+        class="absolute right-0 top-full z-50 mt-2 w-[min(calc(100vw-1.5rem),380px)] overflow-hidden rounded-xl border border-white/[0.08] bg-zinc-900 shadow-xl shadow-black/40"
     >
         {{-- Header --}}
         <div class="flex items-center justify-between border-b border-white/[0.06] px-4 py-3">

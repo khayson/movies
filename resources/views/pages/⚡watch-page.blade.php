@@ -239,6 +239,8 @@ class extends Component
     {
         $tmdb = app(Tmdb::class);
 
+        $details = [];
+
         try {
             $details = $tmdb->details($this->type, $this->tmdbId);
             $title = $details['title'] ?? $details['name'] ?? 'Untitled';
@@ -247,6 +249,8 @@ class extends Component
             $title = 'Untitled';
             $posterPath = null;
         }
+
+        $isPrivate = auth()->user()->adultStealthEnabled() && (bool) ($details['adult'] ?? false);
 
         auth()->user()->watchHistory()->updateOrCreate(
             [
@@ -258,6 +262,7 @@ class extends Component
                 'poster_path' => $posterPath,
                 'season' => $this->type === 'tv' ? $this->season : null,
                 'episode' => $this->type === 'tv' ? $this->episode : null,
+                'is_private' => $isPrivate,
             ]
         );
     }

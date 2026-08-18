@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\AdultSafety;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -12,6 +13,10 @@ class AdultContentProvider
      */
     public function xnxx(string $query = '', int $page = 1, string $mode = 'trending', string $category = ''): array
     {
+        if (AdultSafety::isBlockedQuery($query) || AdultSafety::isBlockedQuery($category)) {
+            return $this->emptyCatalog();
+        }
+
         $cacheKey = "adult.xnxx.{$mode}.{$page}.".md5($query.$category);
 
         return Cache::remember($cacheKey, now()->addMinutes(15), function () use ($query, $page, $mode, $category): array {
@@ -19,7 +24,7 @@ class AdultContentProvider
             $host = config('sources.rapidapi_hosts.xnxx', 'porn-xnxx-api.p.rapidapi.com');
 
             if (! $apiKey) {
-                return ['videos' => [], 'total_pages' => 1];
+                return $this->emptyCatalog();
             }
 
             $http = Http::timeout(15)
@@ -57,9 +62,9 @@ class AdultContentProvider
                 $count = (int) ($response['count'] ?? count($videos));
                 $totalPages = $count >= 36 ? $page + 1 : $page;
 
-                return ['videos' => $videos, 'total_pages' => min($totalPages, 500)];
+                return $this->catalog($videos, $totalPages);
             } catch (\Throwable) {
-                return ['videos' => [], 'total_pages' => 1];
+                return $this->emptyCatalog();
             }
         });
     }
@@ -130,7 +135,10 @@ class AdultContentProvider
                     ->get("https://{$host}/categories", ['letter' => $letter])
                     ->json();
 
-                return $response['categories'] ?? [];
+                return collect($response['categories'] ?? [])
+                    ->reject(fn (array $category): bool => AdultSafety::isBlockedQuery((string) ($category['name'] ?? $category['slug'] ?? '')))
+                    ->values()
+                    ->all();
             } catch (\Throwable) {
                 return [];
             }
@@ -142,6 +150,10 @@ class AdultContentProvider
      */
     public function pornhub(string $query = '', int $page = 1, string $mode = 'trending'): array
     {
+        if (AdultSafety::isBlockedQuery($query)) {
+            return $this->emptyCatalog();
+        }
+
         $cacheKey = "adult.pornhub.{$mode}.{$page}.".md5($query);
 
         return Cache::remember($cacheKey, now()->addMinutes(15), function () use ($query, $page, $mode): array {
@@ -149,7 +161,7 @@ class AdultContentProvider
             $host = config('sources.rapidapi_hosts.pornhub', 'pornhub-api-xnxx.p.rapidapi.com');
 
             if (! $apiKey) {
-                return ['videos' => [], 'total_pages' => 1];
+                return $this->emptyCatalog();
             }
 
             $http = Http::timeout(15)
@@ -182,9 +194,9 @@ class AdultContentProvider
                 $count = (int) ($response['count'] ?? count($videos));
                 $totalPages = $count >= 30 ? $page + 1 : $page;
 
-                return ['videos' => $videos, 'total_pages' => min($totalPages, 500)];
+                return $this->catalog($videos, $totalPages);
             } catch (\Throwable) {
-                return ['videos' => [], 'total_pages' => 1];
+                return $this->emptyCatalog();
             }
         });
     }
@@ -236,6 +248,10 @@ class AdultContentProvider
      */
     public function xvideos(string $query = '', int $page = 1): array
     {
+        if (AdultSafety::isBlockedQuery($query)) {
+            return $this->emptyCatalog();
+        }
+
         $cacheKey = "adult.xvideos.{$page}.".md5($query);
 
         return Cache::remember($cacheKey, now()->addMinutes(15), function () use ($query, $page): array {
@@ -243,7 +259,7 @@ class AdultContentProvider
             $host = config('sources.rapidapi_hosts.xvideos', 'xvideos-com-api.p.rapidapi.com');
 
             if (! $apiKey || $query === '') {
-                return ['videos' => [], 'total_pages' => 1];
+                return $this->emptyCatalog();
             }
 
             try {
@@ -273,9 +289,9 @@ class AdultContentProvider
                 $count = (int) ($response['count'] ?? count($videos));
                 $totalPages = $count >= 20 ? $page + 1 : $page;
 
-                return ['videos' => $videos, 'total_pages' => min($totalPages, 500)];
+                return $this->catalog($videos, $totalPages);
             } catch (\Throwable) {
-                return ['videos' => [], 'total_pages' => 1];
+                return $this->emptyCatalog();
             }
         });
     }
@@ -327,6 +343,10 @@ class AdultContentProvider
      */
     public function eporner(string $query = '', int $page = 1, string $order = 'top-weekly'): array
     {
+        if (AdultSafety::isBlockedQuery($query)) {
+            return $this->emptyCatalog();
+        }
+
         $cacheKey = "adult.eporner.{$order}.{$page}.".md5($query);
 
         return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($query, $page, $order): array {
@@ -363,9 +383,9 @@ class AdultContentProvider
                 $totalCount = (int) ($response['total_count'] ?? 0);
                 $totalPages = $totalCount > 0 ? (int) ceil($totalCount / 24) : 1;
 
-                return ['videos' => $videos, 'total_pages' => min($totalPages, 500)];
+                return $this->catalog($videos, $totalPages);
             } catch (\Throwable) {
-                return ['videos' => [], 'total_pages' => 1];
+                return $this->emptyCatalog();
             }
         });
     }
@@ -375,6 +395,10 @@ class AdultContentProvider
      */
     public function redtube(string $query = '', int $page = 1, string $order = 'mostviewed'): array
     {
+        if (AdultSafety::isBlockedQuery($query)) {
+            return $this->emptyCatalog();
+        }
+
         $cacheKey = "adult.redtube.{$order}.{$page}.".md5($query);
 
         return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($query, $page, $order): array {
@@ -415,9 +439,9 @@ class AdultContentProvider
                 $totalCount = (int) ($response['count'] ?? 0);
                 $totalPages = $totalCount > 0 ? (int) ceil($totalCount / 20) : 1;
 
-                return ['videos' => $videos, 'total_pages' => min($totalPages, 500)];
+                return $this->catalog($videos, $totalPages);
             } catch (\Throwable) {
-                return ['videos' => [], 'total_pages' => 1];
+                return $this->emptyCatalog();
             }
         });
     }
@@ -463,6 +487,26 @@ class AdultContentProvider
                 return null;
             }
         });
+    }
+
+    /**
+     * @return array{videos: array<int, array<string, mixed>>, total_pages: int}
+     */
+    private function emptyCatalog(): array
+    {
+        return ['videos' => [], 'total_pages' => 1];
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $videos
+     * @return array{videos: array<int, array<string, mixed>>, total_pages: int}
+     */
+    private function catalog(array $videos, int $totalPages): array
+    {
+        return [
+            'videos' => AdultSafety::rejectBlockedTitles($videos),
+            'total_pages' => min($totalPages, 500),
+        ];
     }
 
     private function formatNumber(int $number): string

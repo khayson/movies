@@ -23,9 +23,10 @@ class SendWeeklyDigest extends Command
         $sent = 0;
 
         foreach ($users as $user) {
-            $watchedThisWeek = $user->watchHistory()->where('created_at', '>=', $weekAgo)->count();
+            $watchedThisWeek = $user->watchHistory()->visible()->where('created_at', '>=', $weekAgo)->count();
             $reviewsThisWeek = $user->reviews()->where('created_at', '>=', $weekAgo)->count();
             $currentStreak = $user->watchHistory()
+                ->visible()
                 ->select('created_at')
                 ->orderByDesc('created_at')
                 ->limit(30)
@@ -50,7 +51,7 @@ class SendWeeklyDigest extends Command
             $followingIds = $user->following()->pluck('users.id');
             if ($followingIds->isNotEmpty()) {
                 $friendActivity = User::whereIn('id', $followingIds)
-                    ->withCount(['watchHistory as recent_watches' => fn ($q) => $q->where('created_at', '>=', $weekAgo)])
+                    ->withCount(['watchHistory as recent_watches' => fn ($q) => $q->visible()->where('created_at', '>=', $weekAgo)])
                     ->having('recent_watches', '>', 0)
                     ->orderByDesc('recent_watches')
                     ->limit(3)

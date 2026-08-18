@@ -3,6 +3,7 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Support\UserPreferences;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -147,7 +148,22 @@ class User extends Authenticatable implements PasskeyUser
 
     public function canViewAdultContent(): bool
     {
-        return $this->isAdult() && ($this->preferences['show_adult_content'] ?? false);
+        return $this->isAdult() && UserPreferences::bool($this->preferences, 'show_adult_content', false);
+    }
+
+    public function requiresAdultSessionLock(): bool
+    {
+        return UserPreferences::bool($this->preferences, 'adult_lock_session', true);
+    }
+
+    public function adultStealthEnabled(): bool
+    {
+        return UserPreferences::bool($this->preferences, 'adult_stealth_mode', false);
+    }
+
+    public function adultBlurPreviews(): bool
+    {
+        return UserPreferences::bool($this->preferences, 'adult_blur_previews', true);
     }
 
     /**

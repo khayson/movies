@@ -10,7 +10,10 @@ test('defaults include advanced preference keys', function () {
         ->and($defaults['prefer_hls_direct'])->toBeFalse()
         ->and($defaults['excluded_providers'])->toBe([])
         ->and($defaults['cinesrc_seek'])->toBe(10)
-        ->and($defaults['cinesrc_back'])->toBe('close');
+        ->and($defaults['cinesrc_back'])->toBe('close')
+        ->and($defaults['adult_lock_session'])->toBeTrue()
+        ->and($defaults['adult_stealth_mode'])->toBeFalse()
+        ->and($defaults['adult_blur_previews'])->toBeTrue();
 });
 
 test('merge preserves unknown keys while applying updates', function () {

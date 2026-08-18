@@ -1,5 +1,7 @@
 <?php
 
+use App\Services\AnimeDb;
+use App\Services\RottenTomatoes;
 use App\Services\Tmdb;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -10,10 +12,10 @@ new
 #[Title('StreamVault — Free Movie & TV Streaming')]
 class extends Component
 {
-    public function with(Tmdb $tmdb): array
+    public function with(Tmdb $tmdb, RottenTomatoes $rottenTomatoes, AnimeDb $animeDb): array
     {
         $continueWatching = auth()->check()
-            ? auth()->user()->watchHistory()->limit(10)->get()
+            ? auth()->user()->watchHistory()->visible()->limit(10)->get()
             : collect();
 
         $trending = $tmdb->trending('all', 'week')['results'] ?? [];
@@ -29,6 +31,37 @@ class extends Component
             ->values()
             ->all();
         $airingToday = $tmdb->airingToday()['results'] ?? [];
+
+        $rtNetflixTop = $rottenTomatoes->toTmdbCards($rottenTomatoes->netflixTopTv(24), $tmdb, 12);
+        $rtComingSoon = $rottenTomatoes->toTmdbCards($rottenTomatoes->comingSoon(24), $tmdb, 12);
+        $rtQueryMovies = $rottenTomatoes->toTmdbCards($rottenTomatoes->queryMovies(1, null, 24), $tmdb, 12);
+        $malAnime = $animeDb->toTmdbCards($animeDb->topRanked(24), $tmdb, 12);
+        $tmdbAnimeTv = array_map(
+            fn (array $item): array => array_merge($item, ['media_type' => 'tv']),
+            $tmdb->animation('tv')['results'] ?? []
+        );
+        $tmdbAnimeMovies = array_map(
+            fn (array $item): array => array_merge($item, ['media_type' => 'movie']),
+            $tmdb->animation('movie')['results'] ?? []
+        );
+        $topAnime = $malAnime !== [] ? $malAnime : array_slice($tmdbAnimeTv, 0, 12);
+        $featuredAnimeItem = $topAnime[0] ?? null;
+        $featuredAnime = null;
+
+        if (is_array($featuredAnimeItem)) {
+            $aType = $featuredAnimeItem['media_type'] ?? 'tv';
+            $featuredAnime = [
+                'id' => $featuredAnimeItem['id'],
+                'title' => $featuredAnimeItem['title'] ?? $featuredAnimeItem['name'] ?? '',
+                'backdrop' => ! empty($featuredAnimeItem['backdrop_path']) ? $tmdb->backdropUrl($featuredAnimeItem['backdrop_path'], 'w1280') : '',
+                'rating' => number_format($featuredAnimeItem['vote_average'] ?? 0, 1),
+                'overview' => Str::limit($featuredAnimeItem['overview'] ?? '', 180),
+                'year' => Str::substr($featuredAnimeItem['release_date'] ?? $featuredAnimeItem['first_air_date'] ?? '', 0, 4),
+                'type' => $aType,
+                'watchUrl' => route('watch', ['type' => $aType, 'tmdbId' => $featuredAnimeItem['id']]),
+                'detailUrl' => route($aType === 'tv' ? 'tv.detail' : 'movies.detail', $featuredAnimeItem['id']),
+            ];
+        }
 
         $movieGenres = $tmdb->genres('movie')['genres'] ?? [];
         $tvGenres = $tmdb->genres('tv')['genres'] ?? [];
@@ -110,6 +143,13 @@ class extends Component
             'movieGenres' => $movieGenres,
             'tvGenres' => $tvGenres,
             'featured' => $featured,
+            'rtNetflixTop' => $rtNetflixTop,
+            'rtComingSoon' => $rtComingSoon,
+            'rtQueryMovies' => $rtQueryMovies,
+            'topAnime' => $topAnime,
+            'tmdbAnimeTv' => $tmdbAnimeTv,
+            'tmdbAnimeMovies' => $tmdbAnimeMovies,
+            'featuredAnime' => $featuredAnime,
         ];
     }
 };
@@ -159,8 +199,7 @@ class extends Component
                 },
                 get cur() { return this.items[this.current]; }
             }"
-            class="relative w-full overflow-hidden"
-            style="height: clamp(500px, 80vh, 800px);"
+            class="hero-bleed relative h-[clamp(500px,80vh,800px)] w-full overflow-hidden lg:h-[clamp(564px,calc(80vh_+_4rem),864px)]"
         >
             {{-- Backdrop images --}}
             @foreach($heroItems as $i => $hero)
@@ -285,6 +324,7 @@ class extends Component
                     $tabs = [
                         'trending' => 'Trending Now',
                         'popular' => 'Popular',
+                        'anime' => 'Anime',
                         'toprated' => 'Top Rated',
                         'nowplaying' => 'Now Playing',
                         'recent' => 'Recently Added',
@@ -335,6 +375,13 @@ class extends Component
                 $displayGenres = array_slice($movieGenres, 0, 10);
             @endphp
             <div class="scrollbar-hide mb-8 flex gap-2 overflow-x-auto pb-2">
+                <a
+                    href="{{ route('anime.index') }}"
+                    wire:navigate
+                    class="shrink-0 rounded-full bg-fuchsia-500/15 px-4 py-1.5 text-xs font-semibold text-fuchsia-300 transition hover:bg-fuchsia-500/25"
+                >
+                    Anime
+                </a>
                 @foreach($displayGenres as $genre)
                     <a
                         href="{{ route('genres.browse', ['type' => 'movie', 'genreId' => $genre['id'], 'genreName' => Str::slug($genre['name'])]) }}"
@@ -362,6 +409,9 @@ class extends Component
             <div x-show="activeTab === 'recent'" x-cloak>
                 @include('partials.home-scroll-row', ['items' => $airingToday, 'genreMap' => $genreMap, 'type' => 'tv'])
             </div>
+            <div x-show="activeTab === 'anime'" x-cloak>
+                @include('partials.home-scroll-row', ['items' => $topAnime !== [] ? $topAnime : $tmdbAnimeTv, 'genreMap' => $genreMap, 'type' => 'tv'])
+            </div>
         </div>
 
         {{-- Continue Watching --}}
@@ -382,7 +432,53 @@ class extends Component
             </div>
         @endif
 
-        {{-- Tabbed content: MOVIES / SERIES --}}
+        {{-- Anime hub --}}
+        @if(count($topAnime) > 0 || $featuredAnime)
+            <div class="reveal mx-auto mt-14 max-w-7xl px-4 sm:px-6 lg:px-8">
+                <div class="mb-6 flex items-end justify-between gap-4">
+                    <div>
+                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-fuchsia-400/80">Anime Hub</p>
+                        <h2 class="mt-1 text-2xl font-bold tracking-tight text-white">Watch ranked series and films</h2>
+                    </div>
+                    <a href="{{ route('anime.index') }}" wire:navigate class="text-sm font-medium text-fuchsia-300 transition hover:text-fuchsia-200">
+                        Browse all
+                    </a>
+                </div>
+
+                @if($featuredAnime)
+                    <div class="relative mb-8 overflow-hidden rounded-2xl border border-fuchsia-500/15" style="height: clamp(240px, 34vh, 360px);">
+                        @if($featuredAnime['backdrop'])
+                            <img src="{{ $featuredAnime['backdrop'] }}" alt="{{ $featuredAnime['title'] }}" class="h-full w-full object-cover">
+                        @endif
+                        <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/55 to-fuchsia-950/20"></div>
+                        <div class="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-zinc-950/30 to-transparent"></div>
+                        <div class="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
+                            <span class="mb-2 inline-flex rounded-md bg-fuchsia-600/90 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">Featured Anime</span>
+                            <h3 class="mb-2 text-2xl font-black text-white sm:text-3xl">{{ $featuredAnime['title'] }}</h3>
+                            <p class="mb-4 hidden max-w-xl text-sm text-zinc-300/80 sm:line-clamp-2">{{ $featuredAnime['overview'] }}</p>
+                            <div class="flex items-center gap-3">
+                                <a href="{{ $featuredAnime['watchUrl'] }}" class="inline-flex items-center gap-2 rounded-lg bg-fuchsia-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-fuchsia-600/25 transition hover:bg-fuchsia-500">
+                                    Watch
+                                </a>
+                                <a href="{{ $featuredAnime['detailUrl'] }}" wire:navigate class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10">
+                                    More info
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
+                @include('partials.media-row', [
+                    'title' => 'Top Anime',
+                    'items' => $topAnime,
+                    'type' => 'tv',
+                    'style' => 'scroll',
+                    'seeAllRoute' => route('anime.index'),
+                ])
+            </div>
+        @endif
+
+        {{-- Tabbed content: MOVIES / SERIES / ANIME --}}
         <div
             x-data="{
                 contentTab: 'movies',
@@ -400,6 +496,10 @@ class extends Component
                     <span class="text-zinc-700">|</span>
                     <button @click="contentTab = 'series'" class="px-4 py-2 text-sm font-bold uppercase tracking-wider transition" :class="contentTab === 'series' ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'">
                         Series
+                    </button>
+                    <span class="text-zinc-700">|</span>
+                    <button @click="contentTab = 'anime'" class="px-4 py-2 text-sm font-bold uppercase tracking-wider transition" :class="contentTab === 'anime' ? 'text-fuchsia-300' : 'text-zinc-600 hover:text-zinc-400'">
+                        Anime
                     </button>
                 </div>
 
@@ -542,6 +642,21 @@ class extends Component
                     </a>
                 </div>
             </div>
+
+            {{-- Anime grid --}}
+            <div x-show="contentTab === 'anime'" x-cloak>
+                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                    @foreach(array_slice($topAnime !== [] ? $topAnime : array_merge($tmdbAnimeTv, $tmdbAnimeMovies), 0, 18) as $animeItem)
+                        @include('partials.media-card', ['item' => $animeItem, 'type' => $animeItem['media_type'] ?? 'tv', 'showOverview' => false])
+                    @endforeach
+                </div>
+                <div class="mt-6 text-center">
+                    <a href="{{ route('anime.index') }}" wire:navigate class="inline-flex items-center gap-2 rounded-lg border border-fuchsia-500/20 bg-fuchsia-500/10 px-6 py-2.5 text-sm font-medium text-fuchsia-300 transition hover:bg-fuchsia-500/20 hover:text-white">
+                        View All Anime
+                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
+                    </a>
+                </div>
+            </div>
         </div>
 
         {{-- Upcoming Movies --}}
@@ -605,6 +720,33 @@ class extends Component
                 'style' => 'scroll',
                 'seeAllRoute' => route('new-releases', ['tab' => 'tv']),
             ])
+
+            @if(count($rtNetflixTop) > 0)
+                @include('partials.media-row', [
+                    'title' => 'Netflix Top on Rotten Tomatoes',
+                    'items' => $rtNetflixTop,
+                    'type' => 'tv',
+                    'style' => 'scroll',
+                ])
+            @endif
+
+            @if(count($rtComingSoon) > 0)
+                @include('partials.media-row', [
+                    'title' => 'Coming Soon · Rotten Tomatoes',
+                    'items' => $rtComingSoon,
+                    'type' => 'movie',
+                    'style' => 'scroll',
+                ])
+            @endif
+
+            @if(count($rtQueryMovies) > 0)
+                @include('partials.media-row', [
+                    'title' => 'Fresh on Rotten Tomatoes',
+                    'items' => $rtQueryMovies,
+                    'type' => 'movie',
+                    'style' => 'scroll',
+                ])
+            @endif
         </div>
 
         {{-- CTA Section --}}

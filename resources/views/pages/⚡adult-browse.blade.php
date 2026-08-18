@@ -3,6 +3,7 @@
 use App\Services\AdultContentProvider;
 use App\Services\SourceResolver;
 use App\Services\Tmdb;
+use App\Support\AdultSafety;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Url;
@@ -14,7 +15,7 @@ new
 class extends Component
 {
     #[Url]
-    public string $provider = 'xnxx';
+    public string $provider = 'tmdb';
 
     #[Url]
     public string $sort = '';
@@ -53,7 +54,18 @@ class extends Component
 
     public function searchVideos(): void
     {
+        if (AdultSafety::isBlockedQuery($this->search)) {
+            $this->search = '';
+        }
+
         $this->page = 1;
+    }
+
+    public function quickExit(): mixed
+    {
+        session()->forget('auth.password_confirmed_at');
+
+        return $this->redirectRoute('home', navigate: true);
     }
 
     public function openPlayer(string $embedUrl, string $title): void
@@ -188,6 +200,10 @@ class extends Component
      */
     private function fetchXnxx(AdultContentProvider $adultProvider): array
     {
+        if (AdultSafety::isBlockedQuery($this->sort)) {
+            $this->sort = '';
+        }
+
         if ($this->search !== '') {
             return $adultProvider->xnxx(query: $this->search, page: $this->page, mode: 'search');
         }
@@ -244,59 +260,76 @@ class extends Component
     /**
      * @return array<string, mixed>
      */
-    private function fetchTmdb(Tmdb $tmdb): array
+    private function fetchTmdb(Tmdb $tmdb, string $mediaType = 'movie'): array
     {
+        $isTv = $mediaType === 'tv';
+        $endpoint = $isTv ? '/discover/tv' : '/discover/movie';
+        $searchEndpoint = $isTv ? '/search/tv' : '/search/movie';
         $params = [
             'include_adult' => true,
             'page' => $this->page,
-            'certification_country' => 'US',
             'sort_by' => $this->sort ?: 'popularity.desc',
-            'certification' => 'NC-17|X',
         ];
 
+        if (! $isTv) {
+            $params['certification_country'] = 'US';
+            $params['certification'] = 'NC-17|X';
+        }
+
         if ($this->search !== '') {
-            $data = $tmdb->get('/search/movie', [
+            $data = $tmdb->get($searchEndpoint, [
                 'query' => $this->search,
                 'include_adult' => true,
                 'page' => $this->page,
             ]);
         } else {
-            $data = $tmdb->get('/discover/movie', $params);
+            $data = $tmdb->get($endpoint, $params);
         }
 
         $videos = collect($data['results'] ?? [])
+            ->filter(function (array $item) use ($isTv): bool {
+                if ($this->search !== '' || $isTv) {
+                    return (bool) ($item['adult'] ?? false);
+                }
+
+                return true;
+            })
             ->map(fn (array $item): array => [
                 'id' => (string) $item['id'],
-                'title' => $item['title'] ?? 'Untitled',
-                'thumbnail' => ! empty($item['poster_path'])
-                    ? "https://image.tmdb.org/t/p/w342{$item['poster_path']}"
-                    : '',
+                'title' => $item['title'] ?? ($item['name'] ?? 'Untitled'),
+                'thumbnail' => $tmdb->imageUrl((string) ($item['poster_path'] ?? ''), 'w342'),
                 'duration' => '',
                 'views' => '',
-                'rating' => ! empty($item['vote_average']) ? number_format($item['vote_average'], 1) : '',
+                'rating' => ! empty($item['vote_average']) ? number_format((float) $item['vote_average'], 1) : '',
                 'embed_url' => '',
                 'provider' => 'TMDB',
                 'tmdb_id' => $item['id'],
-                'year' => ! empty($item['release_date']) ? substr($item['release_date'], 0, 4) : '',
+                'media_type' => $mediaType,
+                'year' => substr((string) ($item['release_date'] ?? $item['first_air_date'] ?? ''), 0, 4),
             ])
             ->all();
 
         return [
-            'videos' => $videos,
+            'videos' => AdultSafety::rejectBlockedTitles($videos),
             'total_pages' => min($data['total_pages'] ?? 1, 500),
         ];
     }
 
     public function with(Tmdb $tmdb, AdultContentProvider $adultProvider): array
     {
+        if (AdultSafety::isBlockedQuery($this->search) || AdultSafety::isBlockedQuery($this->sort)) {
+            $this->search = '';
+            $this->sort = '';
+        }
+
         $data = match ($this->provider) {
             'xnxx' => $this->fetchXnxx($adultProvider),
             'pornhub' => $this->fetchPornhub($adultProvider),
             'xvideos' => $this->fetchXvideos($adultProvider),
             'eporner' => $this->fetchEporner($adultProvider),
             'redtube' => $this->fetchRedtube($adultProvider),
-            'tmdb' => $this->fetchTmdb($tmdb),
-            default => ['videos' => [], 'total_pages' => 1],
+            'tmdb_tv' => $this->fetchTmdb($tmdb, 'tv'),
+            default => $this->fetchTmdb($tmdb),
         };
 
         $externalOnly = collect(config('sources.adult_providers', []))
@@ -306,19 +339,19 @@ class extends Component
             ->all();
 
         $providers = [
+            ['value' => 'tmdb', 'label' => 'Movies'],
+            ['value' => 'tmdb_tv', 'label' => 'Series'],
             ['value' => 'xnxx', 'label' => 'XNXX'],
             ['value' => 'pornhub', 'label' => 'PornHub'],
             ['value' => 'xvideos', 'label' => 'XVideos'],
             ['value' => 'eporner', 'label' => 'Eporner'],
             ['value' => 'redtube', 'label' => 'RedTube'],
-            ['value' => 'tmdb', 'label' => 'Movies (TMDB)'],
         ];
 
         $sortOptions = match ($this->provider) {
             'xnxx' => [
                 ['value' => 'trending', 'label' => 'Trending'],
                 ['value' => 'milf', 'label' => 'MILF'],
-                ['value' => 'teen', 'label' => 'Teen'],
                 ['value' => 'amateur', 'label' => 'Amateur'],
                 ['value' => 'anal', 'label' => 'Anal'],
             ],
@@ -339,10 +372,10 @@ class extends Component
                 ['value' => 'rating', 'label' => 'Top Rated'],
                 ['value' => 'newest', 'label' => 'Newest'],
             ],
-            'tmdb' => [
+            'tmdb', 'tmdb_tv' => [
                 ['value' => 'popularity.desc', 'label' => 'Popular'],
                 ['value' => 'vote_average.desc', 'label' => 'Top Rated'],
-                ['value' => 'primary_release_date.desc', 'label' => 'Recent'],
+                ['value' => $this->provider === 'tmdb_tv' ? 'first_air_date.desc' : 'primary_release_date.desc', 'label' => 'Recent'],
             ],
             default => [],
         };
@@ -353,31 +386,54 @@ class extends Component
             'providers' => $providers,
             'sortOptions' => $sortOptions,
             'externalOnly' => $externalOnly,
+            'blurPreviews' => auth()->user()?->adultBlurPreviews() ?? true,
+            'stealthMode' => auth()->user()?->adultStealthEnabled() ?? false,
         ];
     }
 }; ?>
 
-<div>
-    <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        {{-- Header --}}
-        <div class="mb-6">
-            <div class="flex items-center gap-3">
-                <div class="flex size-10 items-center justify-center rounded-lg bg-red-600/20">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="size-5 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
-                </div>
+@php
+    $isTmdbCatalog = in_array($provider, ['tmdb', 'tmdb_tv'], true);
+@endphp
+
+<div
+    x-data
+    x-on:keydown.escape.window="$wire.closePlayer()"
+    x-on:keydown.shift.escape.window="$wire.quickExit()"
+>
+    <div class="relative overflow-hidden border-b border-white/[0.06]">
+        <div class="absolute inset-0 bg-gradient-to-b from-red-950/50 via-zinc-950/85 to-zinc-950"></div>
+        <div class="relative mx-auto flex max-w-7xl flex-col gap-6 px-4 pb-8 pt-12 sm:px-6 lg:px-8">
+            <div class="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                    <h1 class="text-2xl font-bold sm:text-3xl">Adult Content</h1>
-                    <p class="text-sm text-zinc-400">18+ only. Age-verified access.</p>
+                    <p class="text-xs font-semibold uppercase tracking-[0.2em] text-red-400/80">{{ $stealthMode ? __('Private vault') : __('Adult vault') }}</p>
+                    <h1 class="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">
+                        <span class="bg-gradient-to-r from-red-400 to-amber-400 bg-clip-text text-transparent">{{ __('18+') }}</span>
+                    </h1>
+                    <p class="mt-2 max-w-xl text-sm text-zinc-400">
+                        {{ __('Age-verified catalog. Movies and series play in the StreamVault player. Tube sources stay in a private overlay.') }}
+                    </p>
                 </div>
+                <button
+                    type="button"
+                    wire:click="quickExit"
+                    class="rounded-lg border border-white/[0.08] bg-zinc-950/60 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-zinc-400 transition hover:border-red-500/40 hover:text-white"
+                >
+                    {{ __('Quick exit') }}
+                    <span class="ml-1 hidden text-[10px] text-zinc-600 sm:inline">Shift+Esc</span>
+                </button>
+            </div>
+
+            <div class="rounded-lg border border-red-800/40 bg-red-950/20 px-4 py-3">
+                <p class="text-xs text-red-300/90">
+                    <strong>{{ __('18+ only.') }}</strong>
+                    {{ __('Confirm you are an adult. Stealth mode hides this activity from continue watching, stats, and the leaderboard.') }}
+                </p>
             </div>
         </div>
+    </div>
 
-        {{-- Age gate notice --}}
-        <div class="mb-6 rounded-lg border border-red-800/40 bg-red-950/20 px-4 py-3">
-            <p class="text-xs text-red-400">
-                <strong>Warning:</strong> This section contains adult content. By accessing this page you confirm you are 18 years or older. Content sourced directly from third-party adult platforms via their APIs.
-            </p>
-        </div>
+    <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
 
         {{-- Provider tabs --}}
         <div class="mb-4 flex flex-wrap items-center gap-2">
@@ -406,7 +462,7 @@ class extends Component
                 <input
                     type="text"
                     wire:model="search"
-                    placeholder="Search {{ $provider === 'tmdb' ? 'movies' : strtoupper($provider) }}..."
+                    placeholder="Search {{ $isTmdbCatalog ? ($provider === 'tmdb_tv' ? 'series' : 'movies') : strtoupper($provider) }}..."
                     class="flex-1 rounded-lg border border-zinc-700 bg-zinc-800 px-4 py-2 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-red-600 focus:ring-1 focus:ring-red-600"
                 />
                 <button type="submit" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition hover:bg-red-500">
@@ -468,12 +524,26 @@ class extends Component
             </div>
         @endif
 
+        <div wire:loading class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            @foreach(range(1, 12) as $skeleton)
+                <div class="overflow-hidden rounded-lg bg-zinc-800/80 {{ $isTmdbCatalog ? 'aspect-[2/3]' : 'aspect-video' }} animate-pulse"></div>
+            @endforeach
+        </div>
+
         {{-- Results --}}
+        <div wire:loading.remove>
         @if(count($videos) > 0)
             <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 @foreach($videos as $video)
+                    @php
+                        $watchUrl = $isTmdbCatalog && ! empty($video['tmdb_id'])
+                            ? route('watch', ['type' => $video['media_type'] ?? ($provider === 'tmdb_tv' ? 'tv' : 'movie'), 'tmdbId' => $video['tmdb_id']])
+                            : null;
+                    @endphp
                     <div
-                        @if($provider === 'xnxx' && !empty($video['video_link']))
+                        @if($watchUrl)
+                            {{-- TMDB titles open the full player --}}
+                        @elseif($provider === 'xnxx' && !empty($video['video_link']))
                             wire:click="openXnxxPlayer('{{ $video['video_link'] }}', '{{ addslashes($video['title']) }}')"
                         @elseif($provider === 'pornhub' && !empty($video['video_link']))
                             wire:click="openPornhubPlayer('{{ $video['video_link'] }}', '{{ addslashes($video['title']) }}')"
@@ -481,18 +551,19 @@ class extends Component
                             wire:click="openXvideosPlayer('{{ $video['video_link'] }}', '{{ addslashes($video['title']) }}')"
                         @elseif($provider === 'eporner' && !empty($video['id']))
                             wire:click="openEpornerPlayer('{{ $video['id'] }}', '{{ addslashes($video['title']) }}')"
-                        @elseif($provider === 'tmdb' && !empty($video['tmdb_id']))
-                            wire:click="openTmdbPlayer({{ $video['tmdb_id'] }}, '{{ addslashes($video['title']) }}')"
                         @elseif(!empty($video['embed_url']))
                             wire:click="openPlayer('{{ $video['embed_url'] }}', '{{ addslashes($video['title']) }}')"
                         @endif
-                        class="group cursor-pointer"
+                        class="group {{ $watchUrl ? '' : 'cursor-pointer' }}"
                     >
-                        <div class="relative overflow-hidden rounded-lg bg-zinc-800 {{ $provider === 'tmdb' ? 'aspect-[2/3]' : 'aspect-video' }}">
+                        @if($watchUrl)
+                            <a href="{{ $watchUrl }}" wire:navigate class="block">
+                        @endif
+                        <div class="relative overflow-hidden rounded-lg bg-zinc-800 {{ $isTmdbCatalog ? 'aspect-[2/3]' : 'aspect-video' }}">
                             @if(!empty($video['thumbnail']))
                                 <img src="{{ $video['thumbnail'] }}"
                                      alt="{{ $video['title'] }}"
-                                     class="size-full object-cover transition duration-300 group-hover:scale-105"
+                                     class="size-full object-cover transition duration-300 group-hover:scale-105 {{ $blurPreviews ? 'blur-md group-hover:blur-0 group-focus-within:blur-0' : '' }}"
                                      loading="lazy" />
                             @else
                                 <div class="flex size-full items-center justify-center text-zinc-600">
@@ -537,6 +608,9 @@ class extends Component
                                 @endif
                             </div>
                         </div>
+                        @if($watchUrl)
+                            </a>
+                        @endif
                     </div>
                 @endforeach
             </div>
@@ -558,5 +632,6 @@ class extends Component
                 <p class="mt-1 text-sm text-zinc-600">Try a different search or category</p>
             </div>
         @endif
+        </div>
     </div>
 </div>

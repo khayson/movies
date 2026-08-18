@@ -51,6 +51,7 @@ class WatchHistoryFactory extends Factory
             'duration_seconds' => $duration,
             'season' => $isMovie ? null : fake()->numberBetween(1, 4),
             'episode' => $isMovie ? null : fake()->numberBetween(1, 10),
+            'is_private' => false,
         ];
     }
 }

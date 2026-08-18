@@ -2,6 +2,8 @@
 
 use App\Models\EpisodeWatch;
 use App\Models\Review;
+use App\Services\Imdb;
+use App\Services\RottenTomatoes;
 use App\Services\StreamingAvailability;
 use App\Services\Tmdb;
 use Illuminate\Support\Facades\View;
@@ -190,7 +192,7 @@ class extends Component
         }
     }
 
-    public function with(Tmdb $tmdb, StreamingAvailability $streaming): array
+    public function with(Tmdb $tmdb, StreamingAvailability $streaming, Imdb $imdb, RottenTomatoes $rottenTomatoes): array
     {
         $show = $tmdb->details('tv', $this->tmdbId);
 
@@ -252,6 +254,9 @@ class extends Component
         $streamingCountry = $streaming->getUserCountry();
         $streamingData = $streaming->getByTmdbId('tv', $this->tmdbId, $streamingCountry);
         $streamingOptions = $streamingData ? $streaming->getStreamingOptions($streamingData, $streamingCountry) : [];
+        $imdbRatings = $imdb->ratings($show['external_ids']['imdb_id'] ?? null);
+        $airYear = ! empty($show['first_air_date']) ? (int) Str::substr($show['first_air_date'], 0, 4) : null;
+        $rtScores = $rottenTomatoes->scores($show['name'] ?? null, 'tv', $airYear);
 
         return [
             'show' => $show,
@@ -263,7 +268,7 @@ class extends Component
             'seasonData' => $seasonData,
             'trailer' => $trailer,
             'videos' => $videos,
-            'similar' => array_slice($show['similar']['results'] ?? [], 0, 6),
+            'similar' => $tmdb->relatedFromDetails($show, 12),
             'reviews' => $reviews,
             'userReview' => auth()->check() ? $reviews->firstWhere('user_id', auth()->id()) : null,
             'averageUserRating' => $reviews->count() > 0 ? round($reviews->avg('rating'), 1) : null,
@@ -274,6 +279,8 @@ class extends Component
             'watchedCount' => $watchedCount,
             'progressPercent' => $progressPercent,
             'streamingOptions' => $streamingOptions,
+            'imdbRatings' => $imdbRatings,
+            'rtScores' => $rtScores,
         ];
     }
 };
@@ -283,7 +290,7 @@ class extends Component
     @php $title = $show['name'] ?? 'Untitled'; @endphp
 
     {{-- Cinematic Backdrop --}}
-    <div class="relative h-[55vh] min-h-[420px] w-full overflow-hidden">
+    <div class="hero-bleed relative h-[55vh] min-h-[420px] w-full overflow-hidden lg:h-[calc(55vh_+_4rem)] lg:min-h-[484px]">
         @if(!empty($show['backdrop_path']))
             <img src="{{ app(Tmdb::class)->backdropUrl($show['backdrop_path']) }}" alt="{{ $title }}" class="absolute inset-0 h-full w-full object-cover">
         @endif
@@ -322,6 +329,28 @@ class extends Component
                         <span class="inline-flex items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1 text-sm font-semibold text-amber-400">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                             {{ number_format($show['vote_average'], 1) }}
+                        </span>
+                    @endif
+                    @if(!empty($imdbRatings['rating']))
+                        <span class="inline-flex items-center gap-1.5 rounded-lg bg-yellow-500/10 px-2.5 py-1 text-sm font-semibold text-yellow-400">
+                            <span class="text-[10px] font-black">IMDb</span>
+                            {{ number_format($imdbRatings['rating'], 1) }}
+                        </span>
+                    @endif
+                    @if(($imdbRatings['metascore'] ?? null) !== null)
+                        @php
+                            $meta = (int) $imdbRatings['metascore'];
+                            $metaTone = $meta >= 61 ? 'bg-emerald-500/15 text-emerald-400' : ($meta >= 40 ? 'bg-yellow-500/15 text-yellow-400' : 'bg-red-500/15 text-red-400');
+                        @endphp
+                        <span class="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-sm font-semibold {{ $metaTone }}">
+                            <span class="text-[10px] font-black uppercase">Meta</span>
+                            {{ $meta }}
+                        </span>
+                    @endif
+                    @if(($rtScores['tomatometer'] ?? null) !== null)
+                        <span class="inline-flex items-center gap-1.5 rounded-lg bg-red-500/10 px-2.5 py-1 text-sm font-semibold text-red-400">
+                            <span class="text-[10px] font-black uppercase">RT</span>
+                            {{ $rtScores['tomatometer'] }}%
                         </span>
                     @endif
                     @if(!empty($show['status']))
@@ -570,10 +599,16 @@ class extends Component
             'tmdbRating' => $show['vote_average'] ?? null,
             'tmdbVoteCount' => $show['vote_count'] ?? 0,
             'imdbId' => $show['external_ids']['imdb_id'] ?? null,
+            'imdbRating' => $imdbRatings['rating'] ?? null,
+            'imdbVotes' => $imdbRatings['votes'] ?? null,
+            'metascore' => $imdbRatings['metascore'] ?? null,
+            'rtTomatometer' => $rtScores['tomatometer'] ?? null,
+            'rtAudience' => $rtScores['audience'] ?? null,
+            'rtConsensus' => $rtScores['consensus'] ?? null,
         ])
 
         @if(count($similar) > 0)
-            @include('partials.media-row', ['title' => 'Similar Shows', 'items' => $similar, 'type' => 'tv'])
+            @include('partials.media-row', ['title' => 'More Like This', 'items' => $similar, 'type' => 'tv', 'style' => 'scroll'])
         @endif
     </div>
 
