@@ -3,11 +3,15 @@
 namespace App\Services;
 
 use App\Support\AdultSafety;
+use Closure;
+use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
 class AdultContentProvider
 {
+    private const BROWSE_FALLBACK_QUERY = 'amateur';
+
     /**
      * @return array{videos: array<int, array<string, mixed>>, total_pages: int}
      */
@@ -18,55 +22,64 @@ class AdultContentProvider
         }
 
         $cacheKey = "adult.xnxx.{$mode}.{$page}.".md5($query.$category);
+        $cached = Cache::get($cacheKey);
 
-        return Cache::remember($cacheKey, now()->addMinutes(15), function () use ($query, $page, $mode, $category): array {
-            $apiKey = config('sources.rapidapi_key');
-            $host = config('sources.rapidapi_hosts.xnxx', 'porn-xnxx-api.p.rapidapi.com');
+        if (is_array($cached) && ($cached['videos'] ?? []) !== []) {
+            return $cached;
+        }
 
-            if (! $apiKey) {
-                return $this->emptyCatalog();
-            }
+        $apiKey = config('sources.rapidapi_key');
+        $host = config('sources.rapidapi_hosts.xnxx', 'porn-xnxx-api.p.rapidapi.com');
 
+        if (! $apiKey) {
+            return $this->emptyCatalog();
+        }
+
+        try {
             $http = Http::timeout(15)
+                ->connectTimeout(5)
+                ->acceptJson()
                 ->withHeaders([
                     'X-RapidAPI-Key' => $apiKey,
                     'X-RapidAPI-Host' => $host,
                 ]);
 
-            try {
-                $response = match ($mode) {
-                    'search' => $http->withHeaders(['Content-Type' => 'application/json'])
-                        ->post("https://{$host}/search", ['q' => $query, 'page' => $page])
-                        ->json(),
-                    'category' => $http->withHeaders(['Content-Type' => 'application/json'])
-                        ->post("https://{$host}/category", ['slug' => $category, 'page' => $page])
-                        ->json(),
-                    default => $http->get("https://{$host}/trending", ['page' => $page])
-                        ->json(),
-                };
+            $response = match ($mode) {
+                'search' => $http->withHeaders(['Content-Type' => 'application/json'])
+                    ->post("https://{$host}/search", ['q' => $query, 'page' => $page]),
+                'category' => $http->withHeaders(['Content-Type' => 'application/json'])
+                    ->post("https://{$host}/category", ['slug' => $category, 'page' => $page]),
+                default => $http->get("https://{$host}/trending", ['page' => $page]),
+            };
 
-                $videos = collect($response['results'] ?? [])
-                    ->map(fn (array $video): array => [
-                        'id' => $video['video_link'] ?? '',
-                        'title' => $video['title'] ?? 'Untitled',
-                        'thumbnail' => $video['thumbnail'] ?? '',
-                        'duration' => $video['duration'] ?? '',
-                        'views' => $video['views'] ?? '',
-                        'rating' => '',
-                        'embed_url' => '',
-                        'video_link' => $video['video_link'] ?? '',
-                        'provider' => 'XNXX',
-                    ])
-                    ->all();
+            $payload = $response->successful() ? $response->json() : null;
+            $videos = $this->mapXnxxVideos($payload);
+            $count = is_array($payload) ? (int) ($payload['count'] ?? count($videos)) : count($videos);
+            $totalPages = $count >= 36 ? $page + 1 : $page;
+            $catalog = $this->catalog($videos, $totalPages);
 
-                $count = (int) ($response['count'] ?? count($videos));
-                $totalPages = $count >= 36 ? $page + 1 : $page;
+            if ($catalog['videos'] === [] && $mode === 'trending') {
+                $fallback = $this->xnxx(page: $page, mode: 'category', category: 'amateur');
 
-                return $this->catalog($videos, $totalPages);
-            } catch (\Throwable) {
-                return $this->emptyCatalog();
+                if ($fallback['videos'] !== []) {
+                    Cache::put($cacheKey, $fallback, now()->addMinutes(15));
+                }
+
+                return $fallback;
             }
-        });
+
+            if ($catalog['videos'] !== []) {
+                Cache::put($cacheKey, $catalog, now()->addMinutes(15));
+            }
+
+            return $catalog;
+        } catch (\Throwable) {
+            if ($mode === 'trending') {
+                return $this->xnxx(page: $page, mode: 'category', category: 'amateur');
+            }
+
+            return $this->emptyCatalog();
+        }
     }
 
     /**
@@ -155,50 +168,47 @@ class AdultContentProvider
         }
 
         $cacheKey = "adult.pornhub.{$mode}.{$page}.".md5($query);
-
-        return Cache::remember($cacheKey, now()->addMinutes(15), function () use ($query, $page, $mode): array {
-            $apiKey = config('sources.rapidapi_key');
+        $catalog = $this->rememberNonEmpty($cacheKey, 15, function () use ($query, $page, $mode): array {
             $host = config('sources.rapidapi_hosts.pornhub', 'pornhub-api-xnxx.p.rapidapi.com');
+            $http = $this->rapidClient($host);
 
-            if (! $apiKey) {
+            if (! $http) {
                 return $this->emptyCatalog();
             }
 
-            $http = Http::timeout(15)
-                ->withHeaders([
-                    'X-RapidAPI-Key' => $apiKey,
-                    'X-RapidAPI-Host' => $host,
-                    'Content-Type' => 'application/json',
-                ]);
-
             try {
                 $response = match ($mode) {
-                    'search' => $http->post("https://{$host}/api/search", ['q' => $query, 'page' => $page])->json(),
-                    default => $http->get("https://{$host}/api/trending", ['page' => $page])->json(),
+                    'search' => $http->asJson()->post("https://{$host}/api/search", [
+                        'q' => $query,
+                        'pages' => $page,
+                        'page' => $page,
+                    ]),
+                    default => $http->get("https://{$host}/api/trending", ['page' => $page]),
                 };
 
-                $videos = collect($response['results'] ?? [])
-                    ->map(fn (array $video): array => [
-                        'id' => $video['video_link'] ?? '',
-                        'title' => $video['title'] ?? 'Untitled',
-                        'thumbnail' => $video['thumbnail'] ?? '',
-                        'duration' => $video['duration'] ?? '',
-                        'views' => $video['views'] ?? '',
-                        'rating' => '',
-                        'embed_url' => '',
-                        'video_link' => $video['video_link'] ?? '',
-                        'provider' => 'PornHub',
-                    ])
-                    ->all();
+                $payload = $response->successful() ? $response->json() : null;
+                $videos = $this->mapRapidVideos($payload, 'PornHub');
+                $count = is_array($payload) && ! array_is_list($payload)
+                    ? (int) ($payload['count'] ?? count($videos))
+                    : count($videos);
 
-                $count = (int) ($response['count'] ?? count($videos));
-                $totalPages = $count >= 30 ? $page + 1 : $page;
-
-                return $this->catalog($videos, $totalPages);
+                return $this->catalog($videos, $count >= 20 ? $page + 1 : $page);
             } catch (\Throwable) {
                 return $this->emptyCatalog();
             }
         });
+
+        if ($catalog['videos'] === [] && $mode === 'trending') {
+            $fallback = $this->pornhub(query: self::BROWSE_FALLBACK_QUERY, page: $page, mode: 'search');
+
+            if ($fallback['videos'] !== []) {
+                Cache::put($cacheKey, $fallback, now()->addMinutes(15));
+            }
+
+            return $fallback;
+        }
+
+        return $catalog;
     }
 
     /**
@@ -217,7 +227,26 @@ class AdultContentProvider
             }
 
             try {
-                $response = Http::timeout(15)
+                $http = $this->rapidClient($host);
+
+                if (! $http) {
+                    return null;
+                }
+
+                $response = $http
+                    ->asJson()
+                    ->post("https://{$host}/api/download", ['url' => $videoLink]);
+
+                $payload = $response->successful() ? $response->json() : null;
+                $mapped = $this->mapPornhubDownload($payload);
+
+                if ($mapped !== null) {
+                    return $mapped;
+                }
+
+                $legacy = Http::timeout(15)
+                    ->connectTimeout(5)
+                    ->acceptJson()
                     ->withHeaders([
                         'X-RapidAPI-Key' => $apiKey,
                         'X-RapidAPI-Host' => $host,
@@ -226,16 +255,16 @@ class AdultContentProvider
                     ->post("https://{$host}/api/download", ['video_link' => $videoLink])
                     ->json();
 
-                if (empty($response['video_high']) && empty($response['hls'])) {
+                if (empty($legacy['video_high']) && empty($legacy['hls'])) {
                     return null;
                 }
 
                 return [
-                    'title' => $response['title'] ?? 'Untitled',
-                    'video_low' => $response['video_low'] ?? '',
-                    'video_high' => $response['video_high'] ?? '',
-                    'hls' => $response['hls'] ?? '',
-                    'thumbnail' => $response['thumbnail'] ?? '',
+                    'title' => $legacy['title'] ?? 'Untitled',
+                    'video_low' => $legacy['video_low'] ?? '',
+                    'video_high' => $legacy['video_high'] ?? '',
+                    'hls' => $legacy['hls'] ?? '',
+                    'thumbnail' => $legacy['thumbnail'] ?? '',
                 ];
             } catch (\Throwable) {
                 return null;
@@ -248,46 +277,38 @@ class AdultContentProvider
      */
     public function xvideos(string $query = '', int $page = 1): array
     {
-        if (AdultSafety::isBlockedQuery($query)) {
+        $browseQuery = $query !== '' ? $query : self::BROWSE_FALLBACK_QUERY;
+
+        if (AdultSafety::isBlockedQuery($browseQuery)) {
             return $this->emptyCatalog();
         }
 
-        $cacheKey = "adult.xvideos.{$page}.".md5($query);
+        $cacheKey = "adult.xvideos.{$page}.".md5($browseQuery);
 
-        return Cache::remember($cacheKey, now()->addMinutes(15), function () use ($query, $page): array {
-            $apiKey = config('sources.rapidapi_key');
+        return $this->rememberNonEmpty($cacheKey, 15, function () use ($browseQuery, $page): array {
             $host = config('sources.rapidapi_hosts.xvideos', 'xvideos-com-api.p.rapidapi.com');
+            $http = $this->rapidClient($host);
 
-            if (! $apiKey || $query === '') {
+            if (! $http) {
                 return $this->emptyCatalog();
             }
 
             try {
-                $response = Http::timeout(15)
-                    ->withHeaders([
-                        'X-RapidAPI-Key' => $apiKey,
-                        'X-RapidAPI-Host' => $host,
-                        'Content-Type' => 'application/json',
-                    ])
-                    ->post("https://{$host}/search_video", ['query' => $query, 'page' => $page])
-                    ->json();
+                $response = $http->asJson()->post("https://{$host}/search_video", [
+                    'keyword' => $browseQuery,
+                    'page' => $page,
+                ]);
 
-                $videos = collect($response['results'] ?? $response['videos'] ?? [])
-                    ->map(fn (array $video): array => [
-                        'id' => $video['video_link'] ?? ($video['url'] ?? ''),
-                        'title' => $video['title'] ?? 'Untitled',
-                        'thumbnail' => $video['thumbnail'] ?? ($video['thumb'] ?? ''),
-                        'duration' => $video['duration'] ?? '',
-                        'views' => $video['views'] ?? '',
-                        'rating' => '',
-                        'embed_url' => '',
-                        'video_link' => $video['video_link'] ?? ($video['url'] ?? ''),
-                        'provider' => 'XVideos',
-                    ])
-                    ->all();
-
-                $count = (int) ($response['count'] ?? count($videos));
-                $totalPages = $count >= 20 ? $page + 1 : $page;
+                $payload = $response->successful() ? $response->json() : null;
+                $videos = $this->mapRapidVideos($payload, 'XVideos');
+                $count = count($videos);
+                $total = is_array($payload) && ! array_is_list($payload)
+                    ? (int) ($payload['total'] ?? $payload['count'] ?? $count)
+                    : $count;
+                $perPage = max($count, 1);
+                $totalPages = $total > $perPage
+                    ? (int) ceil($total / $perPage)
+                    : ($count >= 20 ? $page + 1 : $page);
 
                 return $this->catalog($videos, $totalPages);
             } catch (\Throwable) {
@@ -347,9 +368,11 @@ class AdultContentProvider
             return $this->emptyCatalog();
         }
 
+        $allowedOrders = ['top-weekly', 'top-monthly', 'latest', 'longest'];
+        $order = in_array($order, $allowedOrders, true) ? $order : 'top-weekly';
         $cacheKey = "adult.eporner.{$order}.{$page}.".md5($query);
 
-        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($query, $page, $order): array {
+        $catalog = $this->rememberNonEmpty($cacheKey, 30, function () use ($query, $page, $order): array {
             $params = [
                 'per_page' => 24,
                 'page' => $page,
@@ -364,23 +387,13 @@ class AdultContentProvider
 
             try {
                 $response = Http::timeout(10)
-                    ->get('https://www.eporner.com/api/v2/video/search/', $params)
-                    ->json();
+                    ->connectTimeout(5)
+                    ->acceptJson()
+                    ->get('https://www.eporner.com/api/v2/video/search/', $params);
 
-                $videos = collect($response['videos'] ?? [])
-                    ->map(fn (array $video): array => [
-                        'id' => $video['id'] ?? '',
-                        'title' => $video['title'] ?? 'Untitled',
-                        'thumbnail' => $video['default_thumb']['src'] ?? ($video['thumbs'][0]['src'] ?? ''),
-                        'duration' => $video['length_min'] ?? '',
-                        'views' => $this->formatNumber((int) ($video['views'] ?? 0)),
-                        'rating' => number_format((float) ($video['rate'] ?? 0), 1),
-                        'embed_url' => "https://www.eporner.com/embed/{$video['id']}/",
-                        'provider' => 'Eporner',
-                    ])
-                    ->all();
-
-                $totalCount = (int) ($response['total_count'] ?? 0);
+                $payload = $response->successful() ? $response->json() : null;
+                $videos = $this->mapEpornerVideos($payload);
+                $totalCount = is_array($payload) ? (int) ($payload['total_count'] ?? count($videos)) : count($videos);
                 $totalPages = $totalCount > 0 ? (int) ceil($totalCount / 24) : 1;
 
                 return $this->catalog($videos, $totalPages);
@@ -388,6 +401,18 @@ class AdultContentProvider
                 return $this->emptyCatalog();
             }
         });
+
+        if ($catalog['videos'] === [] && $order !== 'latest') {
+            $fallback = $this->eporner($query, $page, 'latest');
+
+            if ($fallback['videos'] !== []) {
+                Cache::put($cacheKey, $fallback, now()->addMinutes(30));
+            }
+
+            return $fallback;
+        }
+
+        return $catalog;
     }
 
     /**
@@ -399,9 +424,11 @@ class AdultContentProvider
             return $this->emptyCatalog();
         }
 
+        $allowedOrders = ['mostviewed', 'rating', 'newest'];
+        $order = in_array($order, $allowedOrders, true) ? $order : 'mostviewed';
         $cacheKey = "adult.redtube.{$order}.{$page}.".md5($query);
 
-        return Cache::remember($cacheKey, now()->addMinutes(30), function () use ($query, $page, $order): array {
+        $catalog = $this->rememberNonEmpty($cacheKey, 30, function () use ($query, $page, $order): array {
             $params = [
                 'data' => 'redtube.Videos.searchVideos',
                 'output' => 'json',
@@ -416,27 +443,13 @@ class AdultContentProvider
 
             try {
                 $response = Http::timeout(10)
-                    ->get('https://api.redtube.com/', $params)
-                    ->json();
+                    ->connectTimeout(5)
+                    ->acceptJson()
+                    ->get('https://api.redtube.com/', $params);
 
-                $videos = collect($response['videos'] ?? [])
-                    ->map(function (array $wrapper): array {
-                        $video = $wrapper['video'] ?? $wrapper;
-
-                        return [
-                            'id' => (string) ($video['video_id'] ?? ''),
-                            'title' => $video['title'] ?? 'Untitled',
-                            'thumbnail' => $video['default_thumb'] ?? ($video['thumb'] ?? ''),
-                            'duration' => $video['duration'] ?? '',
-                            'views' => $this->formatNumber((int) str_replace(',', '', (string) ($video['views'] ?? '0'))),
-                            'rating' => number_format((float) ($video['rating'] ?? 0), 1),
-                            'embed_url' => "https://embed.redtube.com/?id={$video['video_id']}",
-                            'provider' => 'RedTube',
-                        ];
-                    })
-                    ->all();
-
-                $totalCount = (int) ($response['count'] ?? 0);
+                $payload = $response->successful() ? $response->json() : null;
+                $videos = $this->mapRedtubeVideos($payload);
+                $totalCount = is_array($payload) ? (int) ($payload['count'] ?? count($videos)) : count($videos);
                 $totalPages = $totalCount > 0 ? (int) ceil($totalCount / 20) : 1;
 
                 return $this->catalog($videos, $totalPages);
@@ -444,6 +457,18 @@ class AdultContentProvider
                 return $this->emptyCatalog();
             }
         });
+
+        if ($catalog['videos'] === [] && $order !== 'newest') {
+            $fallback = $this->redtube($query, $page, 'newest');
+
+            if ($fallback['videos'] !== []) {
+                Cache::put($cacheKey, $fallback, now()->addMinutes(30));
+            }
+
+            return $fallback;
+        }
+
+        return $catalog;
     }
 
     /**
@@ -487,6 +512,223 @@ class AdultContentProvider
                 return null;
             }
         });
+    }
+
+    /**
+     * @param  Closure(): array{videos: array<int, array<string, mixed>>, total_pages: int}  $callback
+     * @return array{videos: array<int, array<string, mixed>>, total_pages: int}
+     */
+    private function rememberNonEmpty(string $cacheKey, int $minutes, Closure $callback): array
+    {
+        $cached = Cache::get($cacheKey);
+
+        if (is_array($cached) && ($cached['videos'] ?? []) !== []) {
+            return $cached;
+        }
+
+        $catalog = $callback();
+
+        if (($catalog['videos'] ?? []) !== []) {
+            Cache::put($cacheKey, $catalog, now()->addMinutes($minutes));
+        }
+
+        return $catalog;
+    }
+
+    private function rapidClient(string $host): ?PendingRequest
+    {
+        $apiKey = config('sources.rapidapi_key');
+
+        if (! is_string($apiKey) || $apiKey === '') {
+            return null;
+        }
+
+        return Http::timeout(15)
+            ->connectTimeout(5)
+            ->acceptJson()
+            ->withHeaders([
+                'X-RapidAPI-Key' => $apiKey,
+                'X-RapidAPI-Host' => $host,
+            ]);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function extractRows(mixed $response): array
+    {
+        if (! is_array($response)) {
+            return [];
+        }
+
+        if ($response !== [] && array_is_list($response)) {
+            $rows = $response;
+        } else {
+            $rows = $response['results'] ?? $response['videos'] ?? $response['data'] ?? [];
+        }
+
+        if (! is_array($rows)) {
+            return [];
+        }
+
+        return collect($rows)
+            ->filter(fn (mixed $row): bool => is_array($row))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function mapRapidVideos(mixed $response, string $provider): array
+    {
+        return collect($this->extractRows($response))
+            ->map(fn (array $video): array => [
+                'id' => $this->firstPresent($video, ['video_link', 'url', 'lien', 'link']),
+                'title' => $this->firstPresent($video, ['title', 'titre', 'name']) ?: 'Untitled',
+                'thumbnail' => $this->firstPresent($video, ['thumbnail', 'thumb', 'preview', 'miniature']),
+                'duration' => $this->firstPresent($video, ['duration', 'duree']),
+                'views' => $this->firstPresent($video, ['views', 'vues']),
+                'rating' => '',
+                'embed_url' => '',
+                'video_link' => $this->firstPresent($video, ['video_link', 'url', 'lien', 'link']),
+                'provider' => $provider,
+            ])
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function mapXnxxVideos(mixed $response): array
+    {
+        return $this->mapRapidVideos($response, 'XNXX');
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function mapEpornerVideos(mixed $response): array
+    {
+        return collect($this->extractRows($response))
+            ->map(function (array $video): array {
+                $thumb = '';
+                if (is_string($video['default_thumb'] ?? null)) {
+                    $thumb = $video['default_thumb'];
+                } elseif (is_array($video['default_thumb'] ?? null)) {
+                    $thumb = (string) ($video['default_thumb']['src'] ?? '');
+                }
+                if ($thumb === '' && is_array($video['thumbs'][0] ?? null)) {
+                    $thumb = (string) ($video['thumbs'][0]['src'] ?? '');
+                }
+
+                return [
+                    'id' => $video['id'] ?? '',
+                    'title' => $video['title'] ?? 'Untitled',
+                    'thumbnail' => $thumb,
+                    'duration' => $video['length_min'] ?? '',
+                    'views' => $this->formatNumber((int) ($video['views'] ?? 0)),
+                    'rating' => number_format((float) ($video['rate'] ?? 0), 1),
+                    'embed_url' => "https://www.eporner.com/embed/{$video['id']}/",
+                    'provider' => 'Eporner',
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function mapRedtubeVideos(mixed $response): array
+    {
+        return collect($this->extractRows($response))
+            ->map(function (array $wrapper): array {
+                $video = is_array($wrapper['video'] ?? null) ? $wrapper['video'] : $wrapper;
+
+                return [
+                    'id' => (string) ($video['video_id'] ?? ''),
+                    'title' => $video['title'] ?? 'Untitled',
+                    'thumbnail' => $video['default_thumb'] ?? ($video['thumb'] ?? ''),
+                    'duration' => $video['duration'] ?? '',
+                    'views' => $this->formatNumber((int) str_replace(',', '', (string) ($video['views'] ?? '0'))),
+                    'rating' => number_format((float) ($video['rating'] ?? 0), 1),
+                    'embed_url' => 'https://embed.redtube.com/?id='.($video['video_id'] ?? ''),
+                    'provider' => 'RedTube',
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $values
+     * @param  list<string>  $keys
+     */
+    private function firstPresent(array $values, array $keys): string
+    {
+        foreach ($keys as $key) {
+            if (is_string($values[$key] ?? null) && $values[$key] !== '') {
+                return $values[$key];
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * @return array{title: string, video_low: string, video_high: string, hls: string, thumbnail: string}|null
+     */
+    private function mapPornhubDownload(mixed $payload): ?array
+    {
+        if (is_array($payload) && (! empty($payload['video_high']) || ! empty($payload['hls']))) {
+            return [
+                'title' => $payload['title'] ?? 'Untitled',
+                'video_low' => $payload['video_low'] ?? '',
+                'video_high' => $payload['video_high'] ?? '',
+                'hls' => $payload['hls'] ?? '',
+                'thumbnail' => $payload['thumbnail'] ?? '',
+            ];
+        }
+
+        $formats = $this->extractRows($payload);
+        $hls = '';
+        $high = '';
+        $low = '';
+
+        foreach ($formats as $format) {
+            $url = (string) ($format['url'] ?? '');
+            $id = strtolower((string) ($format['id'] ?? ''));
+
+            if ($url === '') {
+                continue;
+            }
+
+            if (str_contains($id, 'hls') || str_contains($url, '.m3u8')) {
+                $hls = $hls !== '' ? $hls : $url;
+
+                continue;
+            }
+
+            if (str_contains($id, '240') || str_contains($id, '360')) {
+                $low = $low !== '' ? $low : $url;
+                $high = $high !== '' ? $high : $url;
+
+                continue;
+            }
+
+            $high = $url;
+        }
+
+        if ($hls === '' && $high === '' && $low === '') {
+            return null;
+        }
+
+        return [
+            'title' => 'Untitled',
+            'video_low' => $low,
+            'video_high' => $high !== '' ? $high : $low,
+            'hls' => $hls,
+            'thumbnail' => '',
+        ];
     }
 
     /**

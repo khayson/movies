@@ -42,6 +42,19 @@ class extends Component
         $this->sort = '';
     }
 
+    public function setSort(string $sort): void
+    {
+        if (AdultSafety::isBlockedQuery($sort)) {
+            $this->sort = '';
+            $this->page = 1;
+
+            return;
+        }
+
+        $this->sort = $sort;
+        $this->page = 1;
+    }
+
     public function nextPage(): void
     {
         $this->page++;
@@ -196,14 +209,39 @@ class extends Component
     }
 
     /**
+     * @return list<string>
+     */
+    private function allowedSorts(): array
+    {
+        return match ($this->provider) {
+            'xnxx' => ['trending', 'milf', 'amateur', 'anal'],
+            'pornhub' => ['trending'],
+            'xvideos' => ['trending'],
+            'eporner' => ['top-weekly', 'top-monthly', 'latest', 'longest'],
+            'redtube' => ['mostviewed', 'rating', 'newest'],
+            'tmdb' => ['popularity.desc', 'vote_average.desc', 'primary_release_date.desc'],
+            'tmdb_tv' => ['popularity.desc', 'vote_average.desc', 'first_air_date.desc'],
+            default => [],
+        };
+    }
+
+    private function sanitizeCatalogFilters(): void
+    {
+        if (AdultSafety::isBlockedQuery($this->search) || AdultSafety::isBlockedQuery($this->sort)) {
+            $this->search = AdultSafety::isBlockedQuery($this->search) ? '' : $this->search;
+            $this->sort = '';
+        }
+
+        if ($this->sort !== '' && ! in_array($this->sort, $this->allowedSorts(), true)) {
+            $this->sort = '';
+        }
+    }
+
+    /**
      * @return array<string, mixed>
      */
     private function fetchXnxx(AdultContentProvider $adultProvider): array
     {
-        if (AdultSafety::isBlockedQuery($this->sort)) {
-            $this->sort = '';
-        }
-
         if ($this->search !== '') {
             return $adultProvider->xnxx(query: $this->search, page: $this->page, mode: 'search');
         }
@@ -232,9 +270,7 @@ class extends Component
      */
     private function fetchXvideos(AdultContentProvider $adultProvider): array
     {
-        $query = $this->search !== '' ? $this->search : 'trending';
-
-        return $adultProvider->xvideos(query: $query, page: $this->page);
+        return $adultProvider->xvideos(query: $this->search, page: $this->page);
     }
 
     /**
@@ -242,7 +278,7 @@ class extends Component
      */
     private function fetchEporner(AdultContentProvider $adultProvider): array
     {
-        $order = $this->sort ?: 'top-weekly';
+        $order = $this->sort !== '' ? $this->sort : 'top-weekly';
 
         return $adultProvider->eporner($this->search, $this->page, $order);
     }
@@ -252,7 +288,7 @@ class extends Component
      */
     private function fetchRedtube(AdultContentProvider $adultProvider): array
     {
-        $order = $this->sort ?: 'mostviewed';
+        $order = $this->sort !== '' ? $this->sort : 'mostviewed';
 
         return $adultProvider->redtube($this->search, $this->page, $order);
     }
@@ -284,11 +320,16 @@ class extends Component
             ]);
         } else {
             $data = $tmdb->get($endpoint, $params);
+
+            if (($data['results'] ?? []) === [] && ! $isTv) {
+                unset($params['certification'], $params['certification_country']);
+                $data = $tmdb->get($endpoint, $params);
+            }
         }
 
         $videos = collect($data['results'] ?? [])
-            ->filter(function (array $item) use ($isTv): bool {
-                if ($this->search !== '' || $isTv) {
+            ->filter(function (array $item): bool {
+                if ($this->search !== '') {
                     return (bool) ($item['adult'] ?? false);
                 }
 
@@ -317,10 +358,7 @@ class extends Component
 
     public function with(Tmdb $tmdb, AdultContentProvider $adultProvider): array
     {
-        if (AdultSafety::isBlockedQuery($this->search) || AdultSafety::isBlockedQuery($this->sort)) {
-            $this->search = '';
-            $this->sort = '';
-        }
+        $this->sanitizeCatalogFilters();
 
         $data = match ($this->provider) {
             'xnxx' => $this->fetchXnxx($adultProvider),
@@ -440,8 +478,14 @@ class extends Component
             @foreach($providers as $p)
                 <button
                     wire:click="setProvider('{{ $p['value'] }}')"
-                    class="rounded-lg px-4 py-2 text-sm font-medium transition {{ $provider === $p['value'] ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white' }}"
+                    wire:loading.attr="disabled"
+                    wire:target="setProvider"
+                    class="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition {{ $provider === $p['value'] ? 'bg-red-600 text-white' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-white' }}"
                 >
+                    <svg wire:loading wire:target="setProvider('{{ $p['value'] }}')" class="size-3.5 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
                     {{ $p['label'] }}
                 </button>
             @endforeach
@@ -473,7 +517,7 @@ class extends Component
             <div class="scrollbar-hide flex gap-2 overflow-x-auto">
                 @foreach($sortOptions as $opt)
                     <button
-                        wire:click="$set('sort', '{{ $opt['value'] }}')"
+                        wire:click="setSort('{{ $opt['value'] }}')"
                         class="shrink-0 rounded-md px-3 py-1.5 text-xs font-medium transition {{ ($sort === $opt['value'] || ($sort === '' && $loop->first)) ? 'bg-zinc-700 text-white' : 'bg-zinc-800/60 text-zinc-500 hover:bg-zinc-700 hover:text-white' }}"
                     >
                         {{ $opt['label'] }}
@@ -524,14 +568,35 @@ class extends Component
             </div>
         @endif
 
-        <div wire:loading class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            @foreach(range(1, 12) as $skeleton)
-                <div class="overflow-hidden rounded-lg bg-zinc-800/80 {{ $isTmdbCatalog ? 'aspect-[2/3]' : 'aspect-video' }} animate-pulse"></div>
-            @endforeach
-        </div>
+        @php
+            $catalogLoading = 'setProvider,setSort,searchVideos,nextPage,previousPage';
+        @endphp
 
-        {{-- Results --}}
-        <div wire:loading.remove>
+        <div class="relative min-h-80">
+            <div
+                wire:loading.flex
+                wire:target="{{ $catalogLoading }}"
+                class="absolute inset-0 z-10 flex-col items-center justify-center gap-3 rounded-2xl bg-zinc-950/75 backdrop-blur-sm"
+            >
+                <svg class="size-8 animate-spin text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p class="text-sm text-zinc-400">{{ __('Loading catalog…') }}</p>
+            </div>
+
+            <div
+                wire:loading.class="pointer-events-none opacity-40"
+                wire:target="{{ $catalogLoading }}"
+            >
+                <div wire:loading.grid wire:target="{{ $catalogLoading }}" class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+                    @foreach(range(1, 12) as $skeleton)
+                        <div wire:key="adult-skeleton-{{ $skeleton }}" class="animate-pulse overflow-hidden rounded-lg bg-zinc-800/80 {{ $isTmdbCatalog ? 'aspect-[2/3]' : 'aspect-video' }}"></div>
+                    @endforeach
+                </div>
+
+                {{-- Results --}}
+                <div wire:loading.remove wire:target="{{ $catalogLoading }}">
         @if(count($videos) > 0)
             <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 @foreach($videos as $video)
@@ -632,6 +697,8 @@ class extends Component
                 <p class="mt-1 text-sm text-zinc-600">Try a different search or category</p>
             </div>
         @endif
+                </div>
+            </div>
         </div>
     </div>
 </div>

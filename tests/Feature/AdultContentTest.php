@@ -145,6 +145,23 @@ test('blocked adult searches are discarded', function () {
         ->assertSet('search', '');
 });
 
+test('adult browse includes a catalog loading animation', function () {
+    $this->actingAs(adultUser())
+        ->get(route('adult.browse'))
+        ->assertOk()
+        ->assertSee('Loading catalog', false);
+});
+
+test('switching providers clears leftover movie sorts', function () {
+    $this->actingAs(adultUser());
+
+    Livewire::test('pages::adult-browse')
+        ->set('sort', 'popularity.desc')
+        ->call('setProvider', 'xnxx')
+        ->assertSet('provider', 'xnxx')
+        ->assertSet('sort', '');
+});
+
 test('stealth mode marks adult watches as private', function () {
     $user = adultUser(['adult_stealth_mode' => true]);
 
