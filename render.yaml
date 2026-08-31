@@ -10,6 +10,7 @@ services:
     runtime: docker
     plan: free
     healthCheckPath: /up
+    preDeployCommand: php artisan migrate --force
     envVars:
       - key: APP_ENV
         value: production
@@ -29,6 +30,8 @@ services:
         fromDatabase:
           name: movies-db
           property: connectionString
+      - key: DB_SSLMODE
+        value: require
       - key: SESSION_DRIVER
         value: database
       - key: SESSION_SECURE_COOKIE

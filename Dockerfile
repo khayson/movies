@@ -23,6 +23,7 @@ FROM richarvey/nginx-php-fpm:3.1.6
 
 COPY . .
 
+COPY --from=vendor /app/vendor ./vendor
 COPY --from=frontend /app/public/build ./public/build
 
 ENV SKIP_COMPOSER=1
