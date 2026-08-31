@@ -123,6 +123,30 @@ test('tmdb service serves stale cache when the upstream keeps failing', function
     expect($result['title'])->toBe('Cached Movie');
 });
 
+test('tmdb details return an empty payload instead of a results list when catalogs are down', function () {
+    Http::fake([
+        'api.themoviedb.org/*' => Http::failedConnection('Connection was reset'),
+        'api.tmdb.org/*' => Http::failedConnection('Connection was reset'),
+        'api.tvmaze.com/*' => Http::response(['message' => 'Not Found'], 404),
+    ]);
+
+    $result = app(Tmdb::class)->details('tv', 108978);
+
+    expect($result)->toBe([])
+        ->and($result)->not->toHaveKey('id');
+});
+
+test('tv detail returns 404 instead of crashing when catalogs have no show', function () {
+    Http::fake([
+        'api.themoviedb.org/*' => Http::failedConnection('Connection was reset'),
+        'api.tmdb.org/*' => Http::failedConnection('Connection was reset'),
+        'api.tvmaze.com/*' => Http::response(['message' => 'Not Found'], 404),
+        '*' => Http::response(['results' => []], 200),
+    ]);
+
+    $this->get(route('tv.detail', 108978))->assertNotFound();
+});
+
 test('tmdb service returns empty results instead of 503 when there is no cache', function () {
     Http::fake([
         'api.themoviedb.org/*' => Http::failedConnection('Connection was reset'),

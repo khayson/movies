@@ -147,7 +147,11 @@ class Tmdb
             return $fallback;
         }
 
-        return is_array($cached) ? $cached : ['results' => []];
+        if ($this->expectsResultsList($endpoint)) {
+            return ['results' => []];
+        }
+
+        return [];
     }
 
     /**
@@ -160,6 +164,11 @@ class Tmdb
         }
 
         return isset($payload['results']) && is_array($payload['results']) && $payload['results'] !== [];
+    }
+
+    private function expectsResultsList(string $endpoint): bool
+    {
+        return preg_match('#^/(tv|movie|person)/\d+#', $endpoint) !== 1;
     }
 
     /**

@@ -144,6 +144,10 @@ class extends Component
     {
         $movie = $tmdb->details('movie', $this->tmdbId);
 
+        if (empty($movie['id']) && empty($movie['title'])) {
+            abort(404);
+        }
+
         View::share('ogTitle', ($movie['title'] ?? 'Movie') . ' — ' . config('app.name'));
         View::share('ogDescription', Str::limit($movie['overview'] ?? '', 200));
         View::share('ogImage', ! empty($movie['backdrop_path']) ? $tmdb->backdropUrl($movie['backdrop_path']) : null);
@@ -329,7 +333,7 @@ class extends Component
                         {{ $isOnWatchlist ? 'On Watchlist' : 'Watchlist' }}
                     </button>
                     @include('partials.add-to-collection', ['mediaTitle' => $title, 'mediaPoster' => $movie['poster_path'] ?? null])
-                    @include('partials.share-buttons', ['shareTitle' => $title . ' — StreamVault', 'shareUrl' => route('movies.detail', $movie['id'])])
+                    @include('partials.share-buttons', ['shareTitle' => $title . ' — StreamVault', 'shareUrl' => route('movies.detail', $this->tmdbId)])
                 </div>
             </div>
         </div>
