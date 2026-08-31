@@ -9,7 +9,6 @@ services:
     name: movies
     runtime: docker
     plan: free
-    healthCheckPath: /up
     preDeployCommand: php artisan migrate --force
     envVars:
       - key: APP_ENV
