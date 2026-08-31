@@ -11,9 +11,8 @@ services:
     plan: free
     preDeployCommand: php artisan migrate --force
     envVars:
-    envVars:
       - key: PORT
-        value: "10000"
+        value: "8080"
       - key: APP_ENV
         value: production
       - key: APP_DEBUG

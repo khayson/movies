@@ -19,33 +19,35 @@ COPY --from=vendor /app/vendor ./vendor
 
 RUN npm run build
 
-FROM richarvey/nginx-php-fpm:3.1.6
+FROM serversideup/php:8.4-fpm-nginx
 
-COPY . .
+USER root
 
-COPY --from=vendor /app/vendor ./vendor
-COPY --from=frontend /app/public/build ./public/build
+RUN install-php-extensions pdo_pgsql
 
-RUN mkdir -p storage/app/public storage/framework/{cache,sessions,views} storage/logs bootstrap/cache \
-    && rm -rf public/storage \
-    && ln -s ../storage/app/public public/storage \
-    && chown -R nginx:nginx storage bootstrap/cache \
-    && chmod -R 775 storage bootstrap/cache \
-    && chmod +x scripts/render-start.sh
+COPY --chown=www-data:www-data . /var/www/html
+COPY --from=vendor --chown=www-data:www-data /app/vendor /var/www/html/vendor
+COPY --from=frontend --chown=www-data:www-data /app/public/build /var/www/html/public/build
 
-ENV SKIP_COMPOSER=1
-ENV SKIP_CHOWN=1
-ENV WEBROOT=/var/www/html/public
-ENV PHP_ERRORS_STDERR=1
-ENV RUN_SCRIPTS=0
-ENV REAL_IP_HEADER=1
+WORKDIR /var/www/html
 
-ENV APP_ENV=production
-ENV APP_DEBUG=false
+RUN mkdir -p \
+        storage/app/public \
+        storage/framework/cache \
+        storage/framework/sessions \
+        storage/framework/views \
+        storage/logs \
+        bootstrap/cache \
+    && ln -sfn ../storage/app/public public/storage \
+    && chown -R www-data:www-data storage bootstrap/cache \
+    && chmod -R ug+rwx storage bootstrap/cache
+
+USER www-data
+
+ENV SSL_MODE=off
+ENV AUTORUN_ENABLED=false
+ENV PHP_OPCACHE_ENABLE=1
 ENV LOG_CHANNEL=stderr
+ENV NGINX_WEBROOT=/var/www/html/public
 
-ENV COMPOSER_ALLOW_SUPERUSER=1
-
-EXPOSE 10000
-
-CMD ["/var/www/html/scripts/render-start.sh"]
+EXPOSE 8080
