@@ -26,11 +26,15 @@ COPY . .
 COPY --from=vendor /app/vendor ./vendor
 COPY --from=frontend /app/public/build ./public/build
 
-RUN mkdir -p storage/app/public \
+RUN mkdir -p storage/app/public storage/framework/{cache,sessions,views} storage/logs bootstrap/cache \
     && rm -rf public/storage \
-    && ln -s ../storage/app/public public/storage
+    && ln -s ../storage/app/public public/storage \
+    && chown -R nginx:nginx storage bootstrap/cache \
+    && chmod -R 775 storage bootstrap/cache \
+    && chmod +x scripts/render-start.sh
 
 ENV SKIP_COMPOSER=1
+ENV SKIP_CHOWN=1
 ENV WEBROOT=/var/www/html/public
 ENV PHP_ERRORS_STDERR=1
 ENV RUN_SCRIPTS=0
@@ -42,4 +46,6 @@ ENV LOG_CHANNEL=stderr
 
 ENV COMPOSER_ALLOW_SUPERUSER=1
 
-CMD ["/start.sh"]
+EXPOSE 10000
+
+CMD ["/var/www/html/scripts/render-start.sh"]
