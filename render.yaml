@@ -44,3 +44,5 @@ services:
         sync: false
       - key: RAPIDAPI_KEY
         sync: false
+      - key: CRON_SECRET
+        sync: false
