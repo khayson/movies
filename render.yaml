@@ -9,7 +9,6 @@ services:
     name: movies
     runtime: docker
     plan: free
-    preDeployCommand: php artisan migrate --force
     envVars:
       - key: PORT
         value: "8080"
