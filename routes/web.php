@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\MediaCardController;
 use App\Http\Controllers\Api\SearchController;
 use App\Models\AffiliateClick;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
 Route::livewire('/', 'pages::home-page')->name('home');
@@ -60,6 +61,21 @@ Route::post('/api/affiliate-click', function (Request $request) {
 Route::view('/terms', 'pages.terms')->name('terms');
 Route::view('/privacy', 'pages.privacy')->name('privacy');
 Route::view('/architecture', 'pages.architecture')->name('architecture');
+
+Route::get('/cron/{token}', function (string $token) {
+    abort_unless(
+        filled(config('services.cron.secret'))
+        && hash_equals((string) config('services.cron.secret'), $token),
+        404,
+    );
+
+    Artisan::call('schedule:run');
+
+    return response()->json([
+        'ok' => true,
+        'output' => Artisan::output(),
+    ]);
+})->name('cron.run');
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');

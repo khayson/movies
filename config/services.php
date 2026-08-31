@@ -55,4 +55,8 @@ return [
         'base_url' => env('TVMAZE_BASE_URL', 'https://api.tvmaze.com'),
     ],
 
+    'cron' => [
+        'secret' => env('CRON_SECRET'),
+    ],
+
 ];
