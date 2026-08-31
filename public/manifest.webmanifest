@@ -1,0 +1,26 @@
+{
+    "name": "StreamVault",
+    "short_name": "StreamVault",
+    "description": "Discover, track, and enjoy movies and TV shows.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait-primary",
+    "background_color": "#09090b",
+    "theme_color": "#d97706",
+    "categories": ["entertainment", "movies"],
+    "icons": [
+        {
+            "src": "/apple-touch-icon.png",
+            "sizes": "180x180",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml",
+            "purpose": "any"
+        }
+    ]
+}

@@ -46,3 +46,7 @@ services:
         sync: false
       - key: CRON_SECRET
         sync: false
+      - key: SUPPORT_URL
+        sync: false
+      - key: SUPPORT_LABEL
+        value: Buy me a coffee

@@ -59,4 +59,9 @@ return [
         'secret' => env('CRON_SECRET'),
     ],
 
+    'support' => [
+        'url' => env('SUPPORT_URL'),
+        'label' => env('SUPPORT_LABEL', 'Buy me a coffee'),
+    ],
+
 ];
