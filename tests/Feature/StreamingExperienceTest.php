@@ -42,7 +42,8 @@ beforeEach(function () {
 test('watch page loads for movie', function () {
     $this->get(route('watch', ['type' => 'movie', 'tmdbId' => 550]))
         ->assertOk()
-        ->assertSee('Disclaimer');
+        ->assertSee('Disclaimer')
+        ->assertSee('bindPlayerMessages', false);
 });
 
 test('watch page loads for tv episode', function () {

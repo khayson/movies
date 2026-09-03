@@ -6,7 +6,7 @@ use App\Services\SourceResolver;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 
-test('resolve includes personalized cinesrc embed as first source', function () {
+test('resolve includes personalized cinesrc embed source', function () {
     config(['sources.cinesrc.resolver_url' => null]);
 
     $user = User::factory()->create([
@@ -28,14 +28,19 @@ test('resolve includes personalized cinesrc embed as first source', function () 
     $this->actingAs($user);
 
     $sources = app(SourceResolver::class)->resolve(550, 'movie');
+    $cinesrc = collect($sources)->firstWhere('provider', 'CineSrc');
 
-    expect($sources)->not->toBeEmpty()
-        ->and($sources[0]['provider'])->toBe('CineSrc')
-        ->and($sources[0]['type'])->toBe('embed')
-        ->and($sources[0]['url'])->toContain('https://cinesrc.st/embed/movie/550')
-        ->and($sources[0]['url'])->toContain('t=600')
-        ->and($sources[0]['url'])->toContain('lastserver=mirror-a')
-        ->and($sources[0]['url'])->toContain('quality=1080');
+    expect($cinesrc)->not->toBeNull()
+        ->and($sources[0]['provider'])->toBe('VidCore')
+        ->and($sources[0]['url'])->toContain('autoPlay=true')
+        ->and($sources[0]['url'])->toContain('startAt=600')
+        ->and($sources[0]['supports_postmessage'])->toBeTrue()
+        ->and($sources[0]['postmessage']['protocol'])->toBe('vidcore')
+        ->and($cinesrc['type'])->toBe('embed')
+        ->and($cinesrc['url'])->toContain('https://cinesrc.st/embed/movie/550')
+        ->and($cinesrc['url'])->toContain('t=600')
+        ->and($cinesrc['url'])->toContain('lastserver=mirror-a')
+        ->and($cinesrc['url'])->toContain('quality=1080');
 });
 
 test('cinesrc tv embed respects autonext and autoskip preferences', function () {
@@ -171,6 +176,44 @@ test('prefer hls direct boosts cinesrc direct recommendation', function () {
     $sources = app(SourceResolver::class)->resolve(550, 'movie');
 
     expect($sources[$index]['provider'])->toBe('CineSrc Direct');
+});
+
+test('recommendServer rotates defaults across providers without user preference', function () {
+    config(['sources.cinesrc.resolver_url' => null]);
+
+    $resolver = app(SourceResolver::class);
+
+    $items = [
+        [550, 'movie', null, null],
+        [1396, 'tv', 1, 1],
+        [603, 'movie', null, null],
+        [27205, 'movie', null, null],
+    ];
+
+    $providers = collect($items)->map(function (array $item) use ($resolver): string {
+        [$tmdbId, $mediaType, $season, $episode] = $item;
+        $index = $resolver->recommendServer($tmdbId, $mediaType, $season, $episode);
+        $sources = $resolver->resolve($tmdbId, $mediaType, $season, $episode);
+
+        return $sources[$index]['provider'] ?? '';
+    });
+
+    expect($providers->unique()->count())->toBeGreaterThan(1);
+});
+
+test('recommendServer excludes failed provider on fallback', function () {
+    config(['sources.cinesrc.resolver_url' => null]);
+
+    $resolver = app(SourceResolver::class);
+    $sources = $resolver->resolve(550, 'movie');
+    $vidCoreIndex = collect($sources)->search(fn (array $source): bool => ($source['provider'] ?? '') === 'VidCore');
+
+    expect($vidCoreIndex)->not->toBeFalse();
+
+    $next = $resolver->recommendServer(550, 'movie', null, null, 'VidCore');
+    $nextProvider = $sources[$next]['provider'] ?? null;
+
+    expect($nextProvider)->not->toBe('VidCore');
 });
 
 test('watch page reportServerError respects auto fallback preference', function () {

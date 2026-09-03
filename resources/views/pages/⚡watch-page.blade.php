@@ -125,6 +125,7 @@ class extends Component
             $this->type,
             $this->type === 'tv' ? $this->season : null,
             $this->type === 'tv' ? $this->episode : null,
+            $provider,
         );
 
         if ($nextServer !== $index) {
@@ -297,6 +298,7 @@ class extends Component
                     'quality' => 'auto',
                     'provider' => 'YouTube Trailer',
                 ]] : [],
+                'recommendedServer' => 0,
                 'details' => $details,
                 'seasonData' => null,
                 'isUpcoming' => true,
@@ -369,6 +371,12 @@ class extends Component
 
         return [
             'sources' => $sources,
+            'recommendedServer' => $resolver->recommendServer(
+                $this->tmdbId,
+                $this->type,
+                $this->type === 'tv' ? $this->season : null,
+                $this->type === 'tv' ? $this->episode : null,
+            ),
             'details' => $details,
             'seasonData' => $seasonData,
             'isUpcoming' => false,
@@ -397,6 +405,8 @@ class extends Component
         $activeProviderName = $source['provider'] ?? 'Unknown';
         $isCineSrcEmbed = $source !== null && ($source['type'] ?? '') === 'embed' && ($source['provider'] ?? '') === 'CineSrc';
         $isHlsSource = $source !== null && ($source['type'] ?? '') === 'hls';
+        $postMessageConfig = is_array($source['postmessage'] ?? null) ? $source['postmessage'] : null;
+        $hasEmbedResume = is_string($source['url'] ?? null) && (str_contains($source['url'], 'startAt=') || str_contains($source['url'], 't=') || str_contains($source['url'], '&t=') || str_contains($source['url'], '?t='));
         $failedProviders = Cache::get('failed_providers', []);
         $blurSpoilers = auth()->check() && \App\Support\UserPreferences::bool(auth()->user()->preferences, 'blur_spoilers', false);
     @endphp
@@ -652,7 +662,7 @@ class extends Component
                                                     {{ $s['provider'] }}
                                                     @if(($s['type'] ?? '') === 'hls')
                                                         <span class="ml-auto rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-400">HLS</span>
-                                                    @elseif($i === 0)
+                                                    @elseif($i === $recommendedServer)
                                                         <span class="ml-auto rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400">Best</span>
                                                     @endif
                                                 </button>
@@ -910,6 +920,7 @@ class extends Component
                 lastDuration: 0,
                 postMessageActive: false,
                 isCineSrc: @json($isCineSrcEmbed),
+                postMessageConfig: @json($postMessageConfig),
                 hlsUrl: @json($isHlsSource ? ($source['url'] ?? '') : ''),
                 resumeAt: {{ max(0, (int) $progressSeconds) }},
                 hlsInstance: null,
@@ -934,15 +945,16 @@ class extends Component
                     this.deviceName = this.detectDevice();
                     this.restoreFromLocal();
                     this.initHlsPlayer();
+                    this.bindPlayerMessages();
 
-                    if (this.isCineSrc) {
-                        this.bindCineSrcMessages();
-                    } else if (!this.hlsUrl) {
-                        this.startHeartbeat();
+                    if (!this.hlsUrl) {
+                        if (!this.postMessageConfig) {
+                            this.startHeartbeat();
+                        }
                         this.startAutoFallback();
                     }
 
-                    if (this.resumeAt > 60 && !this.isCineSrc && !this.hlsUrl) {
+                    if (this.resumeAt > 60 && !this.hlsUrl && !this.isCineSrc && !@json($hasEmbedResume)) {
                         this.showResumePrompt = true;
                     }
 
@@ -965,7 +977,7 @@ class extends Component
                             @this.call('reportServerError', {{ $activeServer }});
                             setTimeout(() => { this.autoFallbackActive = false; }, 2000);
                         }
-                    }, 12000);
+                    }, 8000);
                 },
 
                 handleKeyboard(e) {
@@ -1093,54 +1105,132 @@ class extends Component
                     @endif
                 },
 
-                bindCineSrcMessages() {
-                    window.addEventListener('message', (event) => {
-                        if (event.origin !== 'https://cinesrc.st') return;
-                        const data = event.data;
-                        if (!data || !data.type) return;
+                bindPlayerMessages() {
+                    const config = this.postMessageConfig;
+                    if (!config || !Array.isArray(config.origins) || config.origins.length === 0) {
+                        return;
+                    }
 
-                        switch (data.type) {
-                            case 'cinesrc:timeupdate':
-                            case 'cinesrc:seeked':
-                                this.postMessageActive = true;
-                                if (this.autoFallbackTimer) { clearTimeout(this.autoFallbackTimer); this.autoFallbackTimer = null; }
-                                if (this.serverLoadTimer) { clearTimeout(this.serverLoadTimer); this.serverLoadTimer = null; }
-                                this.autoFallbackActive = false;
-                                this.lastProgress = Math.floor(data.currentTime ?? data.time ?? 0);
-                                this.lastDuration = Math.floor(data.duration ?? this.lastDuration ?? 0);
-                                this.saveToLocal();
-                                this.debounceSave();
-                                if (this.lastProgress > 5) this.reportPlaybackSuccess();
-                                break;
-                            case 'cinesrc:loadedmetadata':
-                                this.lastDuration = Math.floor(data.duration ?? 0);
-                                break;
-                            case 'cinesrc:ended':
-                                this.saveNow();
-                                this.startNextCountdown();
-                                break;
-                            case 'cinesrc:nextepisode':
-                                if (data.internalNavigation && data.season && data.episode) {
-                                    @this.call('handleNextEpisode', data.season, data.episode);
-                                }
-                                break;
-                            case 'cinesrc:sourceused':
-                                if (data.sourceId) {
-                                    @this.call('saveCineSrcServer', data.sourceId);
-                                }
-                                break;
-                            case 'cinesrc:close':
-                                if (window.history.length > 1) {
-                                    window.history.back();
-                                } else {
-                                    window.location.href = @json(route($detailRoute, $tmdbId));
-                                }
-                                break;
-                            case 'cinesrc:error':
-                                @this.call('reportServerError', {{ $activeServer }});
-                                break;
+                    const allowedOrigins = config.origins.map((origin) => String(origin).replace(/\/$/, ''));
+                    const protocol = config.protocol || 'player_event';
+                    const progressEvents = (config.progress_events || ['timeupdate', 'time', 'seeked']).map((event) => String(event).toLowerCase());
+                    const endedEvents = (config.ended_events || ['ended', 'complete']).map((event) => String(event).toLowerCase());
+                    const errorEvents = (config.error_events || ['error']).map((event) => String(event).toLowerCase());
+
+                    window.addEventListener('message', (event) => {
+                        if (!allowedOrigins.includes(event.origin)) {
+                            return;
+                        }
+
+                        const message = this.normalizePlayerMessage(event.data, protocol);
+                        if (!message) {
+                            return;
+                        }
+
+                        if (protocol === 'cinesrc' && message.rawType === 'cinesrc:nextepisode') {
+                            if (event.data.internalNavigation && event.data.season && event.data.episode) {
+                                @this.call('handleNextEpisode', event.data.season, event.data.episode);
+                            }
+                            return;
+                        }
+
+                        if (protocol === 'cinesrc' && message.rawType === 'cinesrc:sourceused') {
+                            if (event.data.sourceId) {
+                                @this.call('saveCineSrcServer', event.data.sourceId);
+                            }
+                            return;
+                        }
+
+                        if (protocol === 'cinesrc' && message.rawType === 'cinesrc:close') {
+                            if (window.history.length > 1) {
+                                window.history.back();
+                            } else {
+                                window.location.href = @json(route($detailRoute, $tmdbId));
+                            }
+                            return;
+                        }
+
+                        if (progressEvents.includes(message.event) || message.event === 'play' || message.event === 'playerstatus' || message.event === 'loadedmetadata') {
+                            this.markPlaybackAlive(message.currentTime, message.duration);
+                            if (this.lastProgress > 5) {
+                                this.reportPlaybackSuccess();
+                            }
+                            return;
+                        }
+
+                        if (endedEvents.includes(message.event)) {
+                            this.saveNow();
+                            this.startNextCountdown();
+                            return;
+                        }
+
+                        if (errorEvents.includes(message.event)) {
+                            @this.call('reportServerError', {{ $activeServer }});
                         }
                     });
+                },
+
+                normalizePlayerMessage(data, protocol) {
+                    if (!data) {
+                        return null;
+                    }
+
+                    if (typeof data === 'string') {
+                        try {
+                            data = JSON.parse(data);
+                        } catch {
+                            return null;
+                        }
+                    }
+
+                    if (typeof data !== 'object') {
+                        return null;
+                    }
+
+                    if (data.type === 'PLAYER_EVENT' && data.data) {
+                        return {
+                            event: String(data.data.event || '').toLowerCase(),
+                            currentTime: data.data.currentTime ?? data.data.time ?? 0,
+                            duration: data.data.duration ?? 0,
+                            rawType: 'PLAYER_EVENT',
+                        };
+                    }
+
+                    if (typeof data.type === 'string' && data.type.includes(':')) {
+                        const event = data.type.split(':').pop().toLowerCase();
+                        return {
+                            event,
+                            currentTime: data.currentTime ?? data.time ?? data.data?.currentTime ?? 0,
+                            duration: data.duration ?? data.data?.duration ?? 0,
+                            rawType: data.type,
+                        };
+                    }
+
+                    if (protocol === 'cinesrc' && typeof data.type === 'string') {
+                        return {
+                            event: data.type.replace('cinesrc:', '').toLowerCase(),
+                            currentTime: data.currentTime ?? data.time ?? 0,
+                            duration: data.duration ?? 0,
+                            rawType: data.type,
+                        };
+                    }
+
+                    return null;
+                },
+
+                markPlaybackAlive(currentTime, duration) {
+                    this.postMessageActive = true;
+                    if (this.autoFallbackTimer) { clearTimeout(this.autoFallbackTimer); this.autoFallbackTimer = null; }
+                    if (this.serverLoadTimer) { clearTimeout(this.serverLoadTimer); this.serverLoadTimer = null; }
+                    this.autoFallbackActive = false;
+                    this.lastProgress = Math.floor(currentTime ?? this.lastProgress ?? 0);
+                    this.lastDuration = Math.floor(duration ?? this.lastDuration ?? 0);
+                    this.saveToLocal();
+                    this.debounceSave();
+                },
+
+                bindCineSrcMessages() {
+                    this.bindPlayerMessages();
                 },
 
                 initHlsPlayer() {

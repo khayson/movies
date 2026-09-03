@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 
 Schedule::command('app:send-weekly-digest')->weeklyOn(1, '9:00');
 Schedule::command('app:pre-warm-sources')->everyFifteenMinutes();
+Schedule::command('app:probe-provider-health')->everyFifteenMinutes();

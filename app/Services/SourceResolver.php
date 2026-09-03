@@ -8,22 +8,25 @@ use Illuminate\Support\Facades\Cache;
 
 class SourceResolver
 {
-    /** @var array<string, int> Provider reliability scores (higher = better) */
+    /** @var array<string, int> Base provider reliability scores (higher = better) */
     private const PROVIDER_SCORES = [
-        'CineSrc Direct' => 98,
-        'CineSrc' => 95,
-        'VidCore' => 85,
-        'VidPhantom' => 80,
-        'VidSrc' => 82,
-        'EzVidAPI' => 75,
-        'VidLink' => 78,
-        'SuperEmbed' => 70,
-        'Embed API' => 65,
-        'AutoEmbed' => 72,
-        'MoviesAPI' => 68,
-        'VidBinge' => 74,
-        'VikingEmbed' => 60,
+        'CineSrc Direct' => 88,
+        'VidCore' => 86,
+        'VidSrc' => 85,
+        'VidPhantom' => 84,
+        'CineSrc' => 83,
+        'VidLink' => 82,
+        'VidBinge' => 81,
+        'EzVidAPI' => 80,
+        'AutoEmbed' => 79,
+        'MoviesAPI' => 78,
+        'SuperEmbed' => 77,
+        'Embed API' => 76,
+        'VikingEmbed' => 75,
     ];
+
+    /** Score band within which providers rotate as defaults for load balancing. */
+    private const DIVERSITY_SCORE_BAND = 6;
 
     /** @var array<int, string> */
     private const PLAYABLE_TYPES = ['embed', 'hls'];
@@ -59,7 +62,11 @@ class SourceResolver
         });
 
         return $this->applyUserSourceFilters(
-            [...$this->resolveCineSrc($tmdbId, $mediaType, $season, $episode), ...$sources],
+            $this->applyEmbedPersonalization(
+                [...$sources, ...$this->resolveCineSrc($tmdbId, $mediaType, $season, $episode)],
+                $tmdbId,
+                $mediaType,
+            ),
         );
     }
 
@@ -97,7 +104,7 @@ class SourceResolver
     /**
      * Select the best server index based on user history, provider reliability, time-of-day analytics, and error tracking.
      */
-    public function recommendServer(int $tmdbId, string $mediaType, ?int $season, ?int $episode): int
+    public function recommendServer(int $tmdbId, string $mediaType, ?int $season, ?int $episode, ?string $excludeProvider = null): int
     {
         $sources = $this->resolve($tmdbId, $mediaType, $season, $episode);
         if (count($sources) === 0) {
@@ -124,12 +131,16 @@ class SourceResolver
             $defaultSource = $user->preferences['default_source'] ?? null;
         }
 
+        $hasUserPreference = is_string($defaultSource) && $defaultSource !== ''
+            || (is_string($userLastServer) && $userLastServer !== '');
+
         $failedProviders = Cache::get('failed_providers', []);
         $hourlyScores = $useProviderScores ? $this->getHourlyScores() : [];
         $regionScores = $useProviderScores ? $this->getRegionScores() : [];
+        $usageBoosts = $useProviderScores ? $this->getUnderutilizedBoosts() : [];
 
-        $bestIndex = 0;
-        $bestScore = -1;
+        /** @var array<int, array{index: int, score: int, provider: string}> $candidates */
+        $candidates = [];
 
         foreach ($sources as $i => $source) {
             if (! in_array($source['type'], self::PLAYABLE_TYPES, true)) {
@@ -138,21 +149,25 @@ class SourceResolver
 
             $provider = $source['provider'] ?? '';
 
+            if ($excludeProvider !== null && $provider === $excludeProvider) {
+                continue;
+            }
+
             if (! $useProviderScores) {
                 $score = 100 - $i;
             } else {
                 $score = self::PROVIDER_SCORES[$provider] ?? 50;
 
                 if ($provider === $userLastServer) {
-                    $score += 20;
+                    $score += 12;
                 }
 
                 if ($provider === $defaultSource) {
-                    $score += 15;
+                    $score += 12;
                 }
 
                 if ($preferHlsDirect && $provider === 'CineSrc Direct') {
-                    $score += 25;
+                    $score += 15;
                 }
 
                 if (isset($hourlyScores[$provider])) {
@@ -163,10 +178,19 @@ class SourceResolver
                     $score += $regionScores[$provider];
                 }
 
+                if (isset($usageBoosts[$provider])) {
+                    $score += $usageBoosts[$provider];
+                }
+
                 if (isset($failedProviders[$provider])) {
                     $failedAt = $failedProviders[$provider];
                     $minutesAgo = (time() - $failedAt) / 60;
                     $score -= max(0, (int) (30 - $minutesAgo));
+                }
+
+                $probeHealthy = app(ProviderHealthProbe::class)->isHealthy($provider);
+                if ($probeHealthy === false) {
+                    $score -= 35;
                 }
             }
 
@@ -174,13 +198,82 @@ class SourceResolver
                 $score += 50;
             }
 
-            if ($score > $bestScore) {
-                $bestScore = $score;
-                $bestIndex = $i;
-            }
+            $candidates[] = ['index' => $i, 'score' => $score, 'provider' => $provider];
         }
 
-        return $bestIndex;
+        if ($candidates === []) {
+            return 0;
+        }
+
+        usort($candidates, fn (array $a, array $b): int => $b['score'] <=> $a['score']);
+
+        if (! $useProviderScores || $hasUserPreference || $preferHlsDirect) {
+            return $candidates[0]['index'];
+        }
+
+        return $this->pickBalancedCandidate($candidates, $tmdbId, $mediaType, $season, $episode);
+    }
+
+    /**
+     * @param  array<int, array{index: int, score: int, provider: string}>  $candidates
+     */
+    private function pickBalancedCandidate(array $candidates, int $tmdbId, string $mediaType, ?int $season, ?int $episode): int
+    {
+        $topScore = $candidates[0]['score'];
+        $tier = array_values(array_filter(
+            $candidates,
+            fn (array $candidate): bool => $candidate['score'] >= $topScore - self::DIVERSITY_SCORE_BAND,
+        ));
+
+        if (count($tier) === 1) {
+            return $tier[0]['index'];
+        }
+
+        $seed = crc32("{$tmdbId}.{$mediaType}.{$season}.{$episode}");
+
+        usort($tier, fn (array $a, array $b): int => crc32($a['provider'].$seed) <=> crc32($b['provider'].$seed));
+
+        return $tier[0]['index'];
+    }
+
+    /**
+     * @return array<string, int>
+     */
+    private function getUnderutilizedBoosts(): array
+    {
+        return Cache::remember('provider_underutilized_boosts', now()->addMinutes(15), function (): array {
+            /** @var array<string, int> $totals */
+            $totals = ProviderAnalytic::query()
+                ->where('date', '>=', now()->subDays(7)->toDateString())
+                ->selectRaw('provider, SUM(success_count) as successes')
+                ->groupBy('provider')
+                ->pluck('successes', 'provider')
+                ->all();
+
+            if ($totals === []) {
+                return [];
+            }
+
+            $max = max($totals);
+
+            if ($max < 10) {
+                return [];
+            }
+
+            $boosts = [];
+
+            foreach ($totals as $provider => $successes) {
+                $ratio = $successes / $max;
+
+                if ($ratio >= 0.5) {
+                    continue;
+                }
+
+                $boosts[$provider] = (int) round((0.5 - $ratio) * 16);
+            }
+
+            return $boosts;
+        });
     }
 
     public function reportFailure(string $provider): void
@@ -406,6 +499,7 @@ class SourceResolver
             'quality' => is_string($options['quality'] ?? null) ? $options['quality'] : 'auto',
             'provider' => 'CineSrc',
             'supports_postmessage' => true,
+            'postmessage' => $this->postMessageConfig('CineSrc'),
         ]];
 
         $direct = app(CineSrcStreamResolver::class)->resolve($tmdbId, $mediaType, $season, $episode);
@@ -521,6 +615,132 @@ class SourceResolver
                 'provider' => $provider['name'] ?? 'Embed',
             ],
         ];
+    }
+
+    /**
+     * @param  array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool, postmessage?: array<string, mixed>}>  $sources
+     * @return array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool, postmessage?: array<string, mixed>}>
+     */
+    private function applyEmbedPersonalization(array $sources, int $tmdbId, string $mediaType): array
+    {
+        $context = $this->playbackContext($tmdbId, $mediaType);
+        $builder = app(EmbedUrlBuilder::class);
+
+        return array_map(function (array $source) use ($builder, $context): array {
+            if (($source['type'] ?? '') !== 'embed') {
+                return $source;
+            }
+
+            $providerConfig = $this->findProviderConfig($source['provider'] ?? '');
+
+            if ($providerConfig === null) {
+                return $source;
+            }
+
+            if (isset($providerConfig['embed_options'])) {
+                $source['url'] = $builder->enrich($source['url'], $providerConfig, $context);
+            }
+
+            $postMessage = $this->postMessageConfig($source['provider'] ?? '');
+
+            if ($postMessage !== null) {
+                $source['supports_postmessage'] = true;
+                $source['postmessage'] = $postMessage;
+            }
+
+            return $source;
+        }, $sources);
+    }
+
+    /**
+     * @return array{
+     *     progress_seconds?: int,
+     *     autoplay: bool,
+     *     muted: bool,
+     *     continue_prompt: bool,
+     *     media_type: string,
+     *     subtitle?: string,
+     * }
+     */
+    private function playbackContext(int $tmdbId, string $mediaType): array
+    {
+        $context = [
+            'autoplay' => filter_var(config('sources.cinesrc.autoplay', true), FILTER_VALIDATE_BOOL),
+            'muted' => false,
+            'continue_prompt' => true,
+            'media_type' => $mediaType,
+        ];
+
+        if (! auth()->check()) {
+            return $context;
+        }
+
+        $prefs = auth()->user()->preferences ?? [];
+        $history = auth()->user()->watchHistory()
+            ->where('tmdb_id', $tmdbId)
+            ->where('media_type', $mediaType)
+            ->first();
+
+        if ($history !== null && $history->progress_seconds > 30) {
+            $context['progress_seconds'] = $history->progress_seconds;
+        }
+
+        $context['autoplay'] = UserPreferences::bool($prefs, 'autoplay_on_watch', true);
+        $context['muted'] = UserPreferences::bool($prefs, 'start_muted', false);
+        $context['continue_prompt'] = UserPreferences::bool($prefs, 'resume_prompt', true);
+
+        $subtitle = UserPreferences::get($prefs, 'content_language', 'en');
+        if (is_string($subtitle) && $subtitle !== '') {
+            $context['subtitle'] = $subtitle;
+        }
+
+        return $context;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function postMessageConfig(string $providerName): ?array
+    {
+        $provider = $this->findProviderConfig($providerName);
+
+        if ($provider === null || ! isset($provider['postmessage'])) {
+            return null;
+        }
+
+        /** @var array<string, mixed> $config */
+        $config = $provider['postmessage'];
+        $protocolKey = $config['protocol'] ?? null;
+
+        if (is_string($protocolKey)) {
+            $template = config("sources.postmessage_protocols.{$protocolKey}", []);
+            $config = array_merge(is_array($template) ? $template : [], $config);
+        }
+
+        $origins = $config['origins'] ?? [];
+        $config['origins'] = array_values(array_unique(array_map(
+            fn (string $origin): string => rtrim($origin, '/'),
+            array_filter($origins, fn ($origin): bool => is_string($origin) && $origin !== ''),
+        )));
+
+        return $config;
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function findProviderConfig(string $providerName): ?array
+    {
+        /** @var array<int, array<string, mixed>> $providers */
+        $providers = config('sources.providers', []);
+
+        foreach ($providers as $provider) {
+            if (($provider['name'] ?? '') === $providerName) {
+                return $provider;
+            }
+        }
+
+        return null;
     }
 
     /**

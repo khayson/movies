@@ -24,77 +24,176 @@ return [
         'back' => env('CINESRC_BACK', 'close'),
     ],
 
-    'providers' => [
-        [
-            'name' => 'CineSrc',
-            'driver' => 'cinesrc',
-            'supports_postmessage' => true,
+    /*
+    |--------------------------------------------------------------------------
+    | PostMessage Protocol Templates
+    |--------------------------------------------------------------------------
+    |
+    | Shared event mappings for embed players that communicate via postMessage.
+    |
+    */
+    'postmessage_protocols' => [
+        'player_event' => [
+            'protocol' => 'player_event',
+            'progress_events' => ['timeupdate', 'time', 'seeked'],
+            'ended_events' => ['ended', 'complete'],
+            'error_events' => ['error'],
         ],
+        'vidcore' => [
+            'protocol' => 'vidcore',
+            'progress_events' => ['timeupdate', 'seeked'],
+            'ended_events' => ['ended'],
+            'error_events' => ['error'],
+        ],
+        'cinesrc' => [
+            'protocol' => 'cinesrc',
+        ],
+    ],
+
+    'providers' => [
         [
             'name' => 'VidCore',
             'driver' => 'embed',
             'movie_url' => env('VIDCORE_MOVIE_URL', 'https://vidcore.org/embed/movie/{id}'),
             'tv_url' => env('VIDCORE_TV_URL', 'https://vidcore.org/embed/tv/{id}/{season}/{episode}'),
+            'embed_options' => [
+                'autoplay' => 'autoPlay',
+                'autoplay_format' => 'true_false',
+                'progress' => 'startAt',
+                'theme' => 'theme',
+                'theme_value' => 'd97706',
+                'subtitle' => 'sub',
+            ],
+            'postmessage' => [
+                'protocol' => 'vidcore',
+                'origins' => ['https://vidcore.org', 'https://www.vidcore.org'],
+            ],
         ],
         [
             'name' => 'VidPhantom',
             'driver' => 'embed',
             'movie_url' => env('VIDPHANTOM_MOVIE_URL', 'https://vidphantom.com/movie/{id}'),
             'tv_url' => env('VIDPHANTOM_TV_URL', 'https://vidphantom.com/tv/{id}/{season}/{episode}'),
+            'embed_options' => [
+                'autoplay' => 'autoplay',
+                'autoplay_format' => 'one_zero',
+                'progress' => 't',
+            ],
         ],
         [
             'name' => 'VidSrc',
             'driver' => 'embed',
             'movie_url' => env('VIDSRC_MOVIE_URL', 'https://vidsrc.mov/embed/movie/{id}'),
             'tv_url' => env('VIDSRC_TV_URL', 'https://vidsrc.mov/embed/tv/{id}/{season}/{episode}'),
+            'embed_options' => [
+                'autoplay' => 'autoplay',
+                'autoplay_format' => 'one_zero',
+                'progress' => 't',
+            ],
+            'postmessage' => [
+                'protocol' => 'player_event',
+                'origins' => ['https://vidsrc.mov', 'https://vidsrc.me', 'https://vidsrc.cc', 'https://vidsrc-embed.ru'],
+            ],
         ],
         [
             'name' => 'EzVidAPI',
             'driver' => 'embed',
             'movie_url' => env('EZVIDAPI_MOVIE_URL', 'https://ezvidapi.com/embed/movie/{id}'),
             'tv_url' => env('EZVIDAPI_TV_URL', 'https://ezvidapi.com/embed/tv/{id}/{season}/{episode}'),
+            'embed_options' => [
+                'autoplay' => 'autoplay',
+                'autoplay_format' => 'one_zero',
+                'progress' => 't',
+            ],
         ],
         [
             'name' => 'VidLink',
             'driver' => 'embed',
             'movie_url' => env('VIDLINK_MOVIE_URL', 'https://vidlink.pro/movie/{id}'),
             'tv_url' => env('VIDLINK_TV_URL', 'https://vidlink.pro/tv/{id}/{season}/{episode}'),
+            'embed_options' => [
+                'autoplay' => 'autoplay',
+                'autoplay_format' => 'one_zero',
+                'progress' => 't',
+            ],
+            'postmessage' => [
+                'protocol' => 'player_event',
+                'origins' => ['https://vidlink.pro'],
+            ],
         ],
         [
             'name' => 'SuperEmbed',
             'driver' => 'embed',
             'movie_url' => env('SUPEREMBED_MOVIE_URL', 'https://multiembed.mov/?video_id={id}&tmdb=1'),
             'tv_url' => env('SUPEREMBED_TV_URL', 'https://multiembed.mov/?video_id={id}&tmdb=1&s={season}&e={episode}'),
+            'embed_options' => [
+                'autoplay' => 'autoplay',
+                'autoplay_format' => 'one_zero',
+            ],
         ],
         [
             'name' => 'Embed API',
             'driver' => 'embed',
             'movie_url' => env('EMBEDAPI_MOVIE_URL', 'https://player.embed-api.stream/?id={id}'),
             'tv_url' => env('EMBEDAPI_TV_URL', 'https://player.embed-api.stream/?id={id}&s={season}&e={episode}'),
+            'embed_options' => [
+                'autoplay' => 'autoplay',
+                'autoplay_format' => 'one_zero',
+                'progress' => 't',
+            ],
         ],
         [
             'name' => 'AutoEmbed',
             'driver' => 'embed',
             'movie_url' => env('AUTOEMBED_MOVIE_URL', 'https://autoembed.co/movie/tmdb/{id}'),
             'tv_url' => env('AUTOEMBED_TV_URL', 'https://autoembed.co/tv/tmdb/{id}-{season}-{episode}'),
+            'embed_options' => [
+                'autoplay' => 'autoplay',
+                'autoplay_format' => 'one_zero',
+                'progress' => 't',
+            ],
         ],
         [
             'name' => 'MoviesAPI',
             'driver' => 'embed',
             'movie_url' => env('MOVIESAPI_MOVIE_URL', 'https://moviesapi.to/movie/{id}'),
             'tv_url' => env('MOVIESAPI_TV_URL', 'https://moviesapi.to/tv/{id}-{season}-{episode}'),
+            'embed_options' => [
+                'autoplay' => 'autoplay',
+                'autoplay_format' => 'one_zero',
+                'progress' => 't',
+            ],
         ],
         [
             'name' => 'VidBinge',
             'driver' => 'embed',
             'movie_url' => env('VIDBINGE_MOVIE_URL', 'https://vidbinge.to/movie/{id}'),
             'tv_url' => env('VIDBINGE_TV_URL', 'https://vidbinge.to/tv/{id}-{season}-{episode}'),
+            'embed_options' => [
+                'autoplay' => 'autoplay',
+                'autoplay_format' => 'one_zero',
+                'progress' => 't',
+            ],
         ],
         [
             'name' => 'VikingEmbed',
             'driver' => 'embed',
             'movie_url' => env('VIKINGEMBED_MOVIE_URL', 'https://vembed.click/embed/movie/{id}'),
             'tv_url' => env('VIKINGEMBED_TV_URL', 'https://vembed.click/embed/tv/{id}/{season}/{episode}'),
+            'embed_options' => [
+                'autoplay' => 'autoplay',
+                'autoplay_format' => 'one_zero',
+                'progress' => 't',
+            ],
+        ],
+        [
+            'name' => 'CineSrc',
+            'driver' => 'cinesrc',
+            'supports_postmessage' => true,
+            'postmessage' => [
+                'protocol' => 'cinesrc',
+                'origins' => [env('CINESRC_BASE_URL', 'https://cinesrc.st')],
+            ],
         ],
         [
             'name' => 'Trailer',
