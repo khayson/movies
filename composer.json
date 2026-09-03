@@ -1,11 +1,12 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/livewire-starter-kit",
+    "name": "khayson/movies",
     "type": "project",
-    "description": "The official Laravel starter kit for Livewire.",
+    "description": "StreamVault — discover, track, and enjoy movies and TV shows.",
     "keywords": [
-        "laravel",
-        "framework"
+        "movies",
+        "streaming",
+        "streamvault"
     ],
     "license": "MIT",
     "require": {

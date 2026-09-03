@@ -2,7 +2,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
 @php
-    $pageTitle = filled($title ?? null) ? $title.' - '.config('app.name', 'Laravel') : config('app.name', 'Laravel');
+    $pageTitle = filled($title ?? null) ? $title.' - '.config('app.name', 'StreamVault') : config('app.name', 'StreamVault');
     $ogTitle = $ogTitle ?? $title ?? config('app.name');
     $ogDescription = $ogDescription ?? 'Discover, track, and enjoy movies and TV shows on StreamVault — your open-source streaming companion.';
     $ogImage = $ogImage ?? null;
@@ -32,6 +32,7 @@
 
 <link rel="icon" href="/favicon.ico" sizes="any">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.png" type="image/png" sizes="512x512">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="theme-color" content="#d97706">
