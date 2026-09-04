@@ -24,4 +24,22 @@ test('new users can register', function () {
         ->assertRedirect(route('dashboard', absolute: false));
 
     $this->assertAuthenticated();
+
+    $this->get(route('dashboard'))
+        ->assertRedirect(route('verification.notice'));
+});
+
+test('registration succeeds even when verification mailer fails', function () {
+    config(['mail.default' => 'resend', 'services.resend.key' => null]);
+
+    $response = $this->post(route('register.store'), [
+        'name' => 'Jane Doe',
+        'email' => 'jane@example.com',
+        'password' => 'password',
+        'password_confirmation' => 'password',
+    ]);
+
+    $response->assertSessionHasNoErrors();
+    $this->assertAuthenticated();
+    $this->assertDatabaseHas('users', ['email' => 'jane@example.com']);
 });
