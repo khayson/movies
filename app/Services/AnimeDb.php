@@ -2,17 +2,14 @@
 
 namespace App\Services;
 
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Str;
 use Throwable;
 
 class AnimeDb
 {
+    public function __construct(private RapidApiClient $rapidApi) {}
+
     /**
      * Browse / search anime catalog.
      *
@@ -293,46 +290,16 @@ class AnimeDb
      */
     private function get(string $path, array $query = []): ?array
     {
-        if (blank(config('services.rapidapi.key'))) {
-            return null;
-        }
-
-        if (RateLimiter::tooManyAttempts('rapidapi', 450) || RateLimiter::tooManyAttempts('rapidapi-per-user', 30)) {
-            return null;
-        }
-
-        RateLimiter::hit('rapidapi', 60 * 60 * 24 * 30);
-        RateLimiter::hit('rapidapi-per-user', 60 * 60);
-
         $host = (string) config('services.anime_db.host', 'anime-db.p.rapidapi.com');
 
-        try {
-            $response = Http::baseUrl("https://{$host}")
-                ->withHeaders([
-                    'X-RapidAPI-Key' => config('services.rapidapi.key'),
-                    'X-RapidAPI-Host' => $host,
-                ])
-                ->acceptJson()
-                ->timeout(8)
-                ->connectTimeout(4)
-                ->retry(2, 200, function (Throwable $exception, PendingRequest $request): bool {
-                    return $exception instanceof ConnectionException
-                        || ($exception instanceof RequestException && $exception->response->serverError());
-                })
-                ->get($path, $query);
-
-            if (! $response->successful()) {
-                return null;
-            }
-
-            $json = $response->json();
-
-            return is_array($json) ? $json : null;
-        } catch (Throwable $e) {
-            report($e);
-
-            return null;
-        }
+        return $this->rapidApi->getJson(
+            $host,
+            "https://{$host}{$path}",
+            $query,
+            timeout: 8,
+            connectTimeout: 4,
+            retry: true,
+        );
     }
 
     /**

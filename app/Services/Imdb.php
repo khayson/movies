@@ -2,16 +2,12 @@
 
 namespace App\Services;
 
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\PendingRequest;
-use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\RateLimiter;
-use Throwable;
 
 class Imdb
 {
+    public function __construct(private RapidApiClient $rapidApi) {}
+
     /**
      * Normalized ratings for a title (IMDb score + Metascore).
      *
@@ -98,55 +94,15 @@ class Imdb
      */
     private function get(string $path): ?array
     {
-        if (blank(config('services.rapidapi.key'))) {
-            return null;
-        }
-
-        if (RateLimiter::tooManyAttempts('rapidapi', 450) || RateLimiter::tooManyAttempts('rapidapi-per-user', 30)) {
-            return null;
-        }
-
-        RateLimiter::hit('rapidapi', 60 * 60 * 24 * 30);
-        RateLimiter::hit('rapidapi-per-user', 60 * 60);
-
         $host = (string) config('services.imdb.host', 'imdb236.p.rapidapi.com');
 
-        try {
-            $response = Http::baseUrl("https://{$host}")
-                ->withHeaders([
-                    'X-RapidAPI-Key' => config('services.rapidapi.key'),
-                    'X-RapidAPI-Host' => $host,
-                ])
-                ->acceptJson()
-                ->timeout(8)
-                ->connectTimeout(4)
-                ->retry(2, 200, function (Throwable $exception, PendingRequest $request): bool {
-                    return $exception instanceof ConnectionException
-                        || ($exception instanceof RequestException && $exception->response->serverError());
-                })
-                ->get($path);
-
-            if (! $response->successful()) {
-                return null;
-            }
-
-            $json = $response->json();
-
-            if (is_array($json)) {
-                /** @var array<string, mixed> $json */
-                return $json;
-            }
-
-            if (is_numeric($json)) {
-                return ['value' => $json + 0];
-            }
-
-            return null;
-        } catch (Throwable $e) {
-            report($e);
-
-            return null;
-        }
+        return $this->rapidApi->getJson(
+            $host,
+            "https://{$host}{$path}",
+            timeout: 8,
+            connectTimeout: 4,
+            retry: true,
+        );
     }
 
     private function normalizeTitleId(?string $imdbId): ?string

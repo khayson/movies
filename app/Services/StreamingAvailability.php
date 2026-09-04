@@ -3,14 +3,11 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\RateLimiter;
 
 class StreamingAvailability
 {
-    /**
-     * @return array<string, mixed>|null
-     */
+    public function __construct(private RapidApiClient $rapidApi) {}
+
     public function getUserCountry(): string
     {
         $user = auth()->user();
@@ -28,32 +25,11 @@ class StreamingAvailability
         $cacheKey = "streaming.{$showType}.{$tmdbId}.{$country}";
 
         return Cache::remember($cacheKey, now()->addDays(7), function () use ($showType, $tmdbId): ?array {
-            if (RateLimiter::tooManyAttempts('rapidapi', 450) || RateLimiter::tooManyAttempts('rapidapi-per-user', 30)) {
-                return null;
-            }
-
-            RateLimiter::hit('rapidapi', 60 * 60 * 24 * 30);
-            RateLimiter::hit('rapidapi-per-user', 60 * 60);
-
-            try {
-                $response = Http::withHeaders([
-                    'X-RapidAPI-Key' => config('services.rapidapi.key'),
-                    'X-RapidAPI-Host' => 'streaming-availability.p.rapidapi.com',
-                ])
-                    ->baseUrl('https://streaming-availability.p.rapidapi.com')
-                    ->get("/shows/{$showType}/{$tmdbId}", [
-                        'output_language' => 'en',
-                    ]);
-
-                if ($response->successful()) {
-                    /** @var array<string, mixed> */
-                    return $response->json();
-                }
-
-                return null;
-            } catch (\Throwable) {
-                return null;
-            }
+            return $this->rapidApi->getJson(
+                'streaming-availability.p.rapidapi.com',
+                "https://streaming-availability.p.rapidapi.com/shows/{$showType}/{$tmdbId}",
+                ['output_language' => 'en'],
+            );
         });
     }
 

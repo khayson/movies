@@ -59,10 +59,24 @@ Route::get('/cron/{token}', function (string $token) {
     );
 
     Artisan::call('schedule:run');
+    $output = Artisan::output();
+
+    $queueDrained = false;
+    if (config('queue.default') !== 'sync') {
+        Artisan::call('queue:work', [
+            '--stop-when-empty' => true,
+            '--max-time' => 45,
+            '--tries' => 3,
+            '--sleep' => 0,
+        ]);
+        $queueDrained = true;
+        $output .= Artisan::output();
+    }
 
     return response()->json([
         'ok' => true,
-        'output' => Artisan::output(),
+        'queue_drained' => $queueDrained,
+        'output' => $output,
     ]);
 })->name('cron.run');
 

@@ -39,7 +39,7 @@ services:
       - key: SESSION_SECURE_COOKIE
         value: "true"
       - key: QUEUE_CONNECTION
-        value: sync
+        value: database
       - key: CACHE_STORE
         value: database
       - key: MAIL_MAILER

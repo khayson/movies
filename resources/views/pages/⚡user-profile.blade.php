@@ -116,9 +116,6 @@ class extends Component
                 <div class="flex-1">
                     <div class="flex items-center gap-3">
                         <h1 class="text-3xl font-bold tracking-tight md:text-4xl">{{ $profileUser->name }}</h1>
-                        @if($profileUser->isPremium())
-                            <span class="rounded-full bg-amber-600/20 px-3 py-1 text-xs font-semibold text-amber-400">Premium</span>
-                        @endif
                     </div>
                     <p class="mt-1 text-sm text-zinc-500">Joined {{ $profileUser->created_at->format('M Y') }}</p>
                     <div class="mt-2 flex items-center gap-4 text-sm text-zinc-400">

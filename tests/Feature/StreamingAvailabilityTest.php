@@ -3,7 +3,7 @@
 use App\Services\StreamingAvailability;
 
 test('getStreamingOptions extracts and sorts options from response data', function () {
-    $service = new StreamingAvailability;
+    $service = app(StreamingAvailability::class);
 
     $showData = [
         'streamingOptions' => [
@@ -66,7 +66,7 @@ test('getStreamingOptions extracts and sorts options from response data', functi
 });
 
 test('getStreamingOptions returns empty array for missing country', function () {
-    $service = new StreamingAvailability;
+    $service = app(StreamingAvailability::class);
 
     $showData = [
         'streamingOptions' => [
@@ -86,7 +86,7 @@ test('getStreamingOptions returns empty array for missing country', function () 
 });
 
 test('getStreamingOptions deduplicates by service and type', function () {
-    $service = new StreamingAvailability;
+    $service = app(StreamingAvailability::class);
 
     $showData = [
         'streamingOptions' => [

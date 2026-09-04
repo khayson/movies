@@ -51,20 +51,37 @@ class extends Component
         }
     }
 
-    public function with(AiRecommender $ai): array
+    public function with(AiRecommender $ai, Tmdb $tmdb): array
     {
         $moods = $this->moods();
         $results = [];
         $searchQuery = '';
+        $usedFallback = false;
+        $unavailable = false;
 
         if ($this->mood === 'custom' && strlen($this->customMood) >= 3) {
             $searchQuery = $this->customMood;
             $data = $ai->search($this->customMood);
             $results = $data['movies'] ?? [];
+            $unavailable = (bool) ($data['unavailable'] ?? false);
         } elseif ($this->mood && isset($moods[$this->mood])) {
             $searchQuery = $moods[$this->mood]['query'];
             $data = $ai->search($moods[$this->mood]['query']);
             $results = $data['movies'] ?? [];
+            $unavailable = (bool) ($data['unavailable'] ?? false);
+        }
+
+        if ($searchQuery !== '' && $results === []) {
+            $fallback = collect($tmdb->search($searchQuery)['results'] ?? [])
+                ->filter(fn (array $item): bool => in_array($item['media_type'] ?? '', ['movie', 'tv'], true))
+                ->take(18)
+                ->values()
+                ->all();
+
+            if ($fallback !== []) {
+                $results = $fallback;
+                $usedFallback = true;
+            }
         }
 
         return [
@@ -73,6 +90,8 @@ class extends Component
             'searchQuery' => $searchQuery,
             'selectedMood' => $this->mood && $this->mood !== 'custom' ? ($moods[$this->mood] ?? null) : null,
             'isCustom' => $this->mood === 'custom',
+            'usedFallback' => $usedFallback,
+            'unavailable' => $unavailable && ! $usedFallback,
         ];
     }
 };
@@ -90,7 +109,7 @@ class extends Component
                     <span class="h-6 w-1 rounded-full bg-fuchsia-500"></span>
                 </div>
                 <h1 class="text-4xl font-bold tracking-tight md:text-5xl">What's Your Mood?</h1>
-                <p class="mt-2 text-sm text-zinc-400">Pick a vibe or describe what you're looking for — AI will find the perfect movies</p>
+                <p class="mt-2 text-sm text-zinc-400">Pick a vibe or describe what you're looking for — we'll suggest matching titles</p>
             </div>
 
             {{-- Custom AI Search --}}
@@ -134,13 +153,16 @@ class extends Component
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <p class="mt-2 text-sm text-zinc-400">AI is finding movies for you...</p>
+            <p class="mt-2 text-sm text-zinc-400">Finding movies for you...</p>
         </div>
 
         {{-- Results --}}
         <div wire:loading.remove>
             @if(count($results) > 0)
                 <section>
+                    @if($usedFallback)
+                        <p class="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">AI recommendations unavailable — showing TMDB matches instead.</p>
+                    @endif
                     <h2 class="mb-1 flex items-center gap-2 text-xl font-bold">
                         @if($selectedMood)
                             <span class="text-2xl">{{ $selectedMood['emoji'] }}</span>
@@ -149,16 +171,20 @@ class extends Component
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-6 text-fuchsia-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                 <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
                             </svg>
-                            AI Recommendations
+                            {{ $usedFallback ? 'Suggested Titles' : 'AI Recommendations' }}
                         @endif
                     </h2>
-                    <p class="mb-5 text-sm text-zinc-500">{{ count($results) }} movies found</p>
+                    <p class="mb-5 text-sm text-zinc-500">{{ count($results) }} titles found</p>
                     <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                         @foreach($results as $item)
-                            @include('partials.media-card', ['item' => $item, 'type' => 'movie'])
+                            @include('partials.media-card', ['item' => $item, 'type' => $item['media_type'] ?? 'movie'])
                         @endforeach
                     </div>
                 </section>
+            @elseif($mood && $unavailable)
+                <div class="rounded-2xl border border-white/[0.06] bg-white/[0.02] py-20 text-center">
+                    <p class="text-zinc-500">Recommendations are unavailable right now. Try again later or use Search.</p>
+                </div>
             @elseif($mood)
                 <div class="rounded-2xl border border-white/[0.06] bg-white/[0.02] py-20 text-center">
                     <p class="text-zinc-500">No recommendations found. Try a different mood or description!</p>

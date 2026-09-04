@@ -135,6 +135,7 @@ class extends Component
             <span class="size-2.5 rounded-full bg-red-500 shadow-sm shadow-red-500/50"></span>
             <div class="h-px flex-1 bg-gradient-to-r from-white/[0.06] to-transparent"></div>
         </div>
+        <p class="mb-6 text-sm text-zinc-400">Share a code so friends open the same title. Playback is not synced — everyone watches on their own.</p>
 
         @if($joinedParty)
             <div class="mb-8">
@@ -164,7 +165,7 @@ class extends Component
             @auth
                 <div class="rounded-xl border border-white/[0.06] bg-white/[0.02] p-6">
                     <h2 class="mb-4 text-lg font-semibold text-white">Create a Party</h2>
-                    <p class="mb-4 text-sm text-zinc-400">Start a watch party and invite friends with a code.</p>
+                    <p class="mb-4 text-sm text-zinc-400">Pick a title, get a code, and share it. Friends join and open the same watch page.</p>
                     <div class="space-y-3">
                         <input wire:model="newTitle" type="text" placeholder="Party name (e.g. Friday Movie Night)"
                                class="w-full rounded-lg border border-white/[0.08] bg-white/[0.04] px-4 py-2 text-sm text-zinc-200 placeholder-zinc-600 outline-none transition focus:border-red-500/30 focus:bg-white/[0.06]">

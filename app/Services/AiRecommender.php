@@ -3,77 +3,99 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\RateLimiter;
 
 class AiRecommender
 {
-    /**
-     * @return array<string, mixed>
-     */
-    public function search(string $query): array
+    private const HOST = 'ai-movie-recommender.p.rapidapi.com';
+
+    public function __construct(private RapidApiClient $rapidApi) {}
+
+    public function available(): bool
     {
-        $cacheKey = 'ai_rec.search.'.md5($query);
-
-        /** @var array<string, mixed> */
-        return Cache::remember($cacheKey, now()->addDays(3), function () use ($query): array {
-            if (RateLimiter::tooManyAttempts('rapidapi', 450) || RateLimiter::tooManyAttempts('rapidapi-per-user', 30)) {
-                return ['success' => false, 'movies' => [], 'rate_limited' => true];
-            }
-
-            RateLimiter::hit('rapidapi', 60 * 60 * 24 * 30);
-            RateLimiter::hit('rapidapi-per-user', 60 * 60);
-
-            try {
-                $response = Http::withHeaders([
-                    'X-RapidAPI-Key' => config('services.rapidapi.key'),
-                    'X-RapidAPI-Host' => 'ai-movie-recommender.p.rapidapi.com',
-                ])
-                    ->get('https://ai-movie-recommender.p.rapidapi.com/api/search', [
-                        'q' => $query,
-                    ]);
-
-                if ($response->successful()) {
-                    /** @var array<string, mixed> */
-                    return $response->json();
-                }
-
-                return ['success' => false, 'movies' => []];
-            } catch (\Throwable) {
-                return ['success' => false, 'movies' => []];
-            }
-        });
+        return $this->rapidApi->configured();
     }
 
     /**
-     * @return array<string, mixed>
+     * @return array{success: bool, movies: array<int, mixed>, unavailable?: bool, rate_limited?: bool}
+     */
+    public function search(string $query): array
+    {
+        if (! $this->available()) {
+            return ['success' => false, 'movies' => [], 'unavailable' => true];
+        }
+
+        if ($this->rapidApi->rateLimited()) {
+            return ['success' => false, 'movies' => [], 'rate_limited' => true];
+        }
+
+        $cacheKey = 'ai_rec.search.'.md5($query);
+        $cached = Cache::get($cacheKey);
+
+        if (is_array($cached) && ($cached['success'] ?? false) === true && ($cached['movies'] ?? []) !== []) {
+            return $cached;
+        }
+
+        $payload = $this->rapidApi->getJson(
+            self::HOST,
+            'https://ai-movie-recommender.p.rapidapi.com/api/search',
+            ['q' => $query],
+        );
+
+        if ($payload === null) {
+            return ['success' => false, 'movies' => []];
+        }
+
+        $result = [
+            'success' => (bool) ($payload['success'] ?? false),
+            'movies' => is_array($payload['movies'] ?? null) ? $payload['movies'] : [],
+        ];
+
+        if ($result['success'] && $result['movies'] !== []) {
+            Cache::put($cacheKey, $result, now()->addDays(3));
+        }
+
+        return $result;
+    }
+
+    /**
+     * @return array{success: bool, movies: array<int, mixed>, unavailable?: bool, rate_limited?: bool}
      */
     public function trending(): array
     {
-        /** @var array<string, mixed> */
-        return Cache::remember('ai_rec.trending', now()->addDays(1), function (): array {
-            if (RateLimiter::tooManyAttempts('rapidapi', 450)) {
-                return ['success' => false, 'movies' => [], 'rate_limited' => true];
-            }
+        if (! $this->available()) {
+            return ['success' => false, 'movies' => [], 'unavailable' => true];
+        }
 
-            RateLimiter::hit('rapidapi', 60 * 60 * 24 * 30);
+        if ($this->rapidApi->rateLimited()) {
+            return ['success' => false, 'movies' => [], 'rate_limited' => true];
+        }
 
-            try {
-                $response = Http::withHeaders([
-                    'X-RapidAPI-Key' => config('services.rapidapi.key'),
-                    'X-RapidAPI-Host' => 'ai-movie-recommender.p.rapidapi.com',
-                ])
-                    ->get('https://ai-movie-recommender.p.rapidapi.com/api/trending');
+        $cacheKey = 'ai_rec.trending';
+        $cached = Cache::get($cacheKey);
 
-                if ($response->successful()) {
-                    /** @var array<string, mixed> */
-                    return $response->json();
-                }
+        if (is_array($cached) && ($cached['success'] ?? false) === true && ($cached['movies'] ?? []) !== []) {
+            return $cached;
+        }
 
-                return ['success' => false, 'movies' => []];
-            } catch (\Throwable) {
-                return ['success' => false, 'movies' => []];
-            }
-        });
+        $payload = $this->rapidApi->getJson(
+            self::HOST,
+            'https://ai-movie-recommender.p.rapidapi.com/api/trending',
+            userBucket: null,
+        );
+
+        if ($payload === null) {
+            return ['success' => false, 'movies' => []];
+        }
+
+        $result = [
+            'success' => (bool) ($payload['success'] ?? false),
+            'movies' => is_array($payload['movies'] ?? null) ? $payload['movies'] : [],
+        ];
+
+        if ($result['success'] && $result['movies'] !== []) {
+            Cache::put($cacheKey, $result, now()->addDay());
+        }
+
+        return $result;
     }
 }

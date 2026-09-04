@@ -65,18 +65,33 @@ class extends Component
                 'totalPages' => 0,
                 'trending' => $tmdb->trending('all', 'day')['results'] ?? [],
                 'aiResults' => [],
+                'aiUnavailable' => false,
+                'aiFallback' => false,
             ];
         }
 
         if ($this->mode === 'ai') {
             $data = $ai->search($this->query);
             $aiResults = $data['movies'] ?? [];
+            $usedFallback = false;
+
+            if ($aiResults === [] && (($data['unavailable'] ?? false) || ($data['success'] ?? false) === false)) {
+                $fallback = collect($tmdb->search($this->query)['results'] ?? [])
+                    ->filter(fn (array $item): bool => in_array($item['media_type'] ?? '', ['movie', 'tv'], true))
+                    ->take(18)
+                    ->values()
+                    ->all();
+                $aiResults = $fallback;
+                $usedFallback = $fallback !== [];
+            }
 
             return [
                 'results' => [],
                 'totalPages' => 0,
                 'trending' => [],
                 'aiResults' => $aiResults,
+                'aiUnavailable' => (bool) ($data['unavailable'] ?? false),
+                'aiFallback' => $usedFallback,
             ];
         }
 
@@ -107,6 +122,8 @@ class extends Component
             'totalPages' => min($data['total_pages'] ?? 1, 500),
             'trending' => [],
             'aiResults' => [],
+            'aiUnavailable' => false,
+            'aiFallback' => false,
         ];
     }
 };
@@ -199,14 +216,22 @@ class extends Component
         <div wire:loading.remove>
             {{-- AI Results --}}
             @if($mode === 'ai' && strlen($query) >= 2)
-                @if(count($aiResults) > 0)
-                    <p class="mb-4 text-sm text-zinc-500">AI found {{ count($aiResults) }} movies for "{{ $query }}"</p>
+                @if($aiFallback && count($aiResults) > 0)
+                    <p class="mb-4 rounded-xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">AI search didn’t return matches. Showing standard TMDB results instead.</p>
+                @endif
+                @if($aiUnavailable && count($aiResults) === 0)
+                    <div class="rounded-2xl border border-white/[0.06] bg-white/[0.02] py-20 text-center">
+                        <p class="text-lg font-medium text-zinc-400">AI search is unavailable</p>
+                        <p class="mt-1 text-sm text-zinc-600">Add a RapidAPI key or switch to Standard search.</p>
+                    </div>
+                @elseif(count($aiResults) > 0)
+                    <p class="mb-4 text-sm text-zinc-500">{{ $aiFallback ? 'TMDB' : 'AI' }} found {{ count($aiResults) }} titles for "{{ $query }}"</p>
                     <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                         @foreach($aiResults as $item)
-                            @include('partials.media-card', ['item' => $item, 'type' => 'movie'])
+                            @include('partials.media-card', ['item' => $item, 'type' => $item['media_type'] ?? 'movie'])
                         @endforeach
                     </div>
-                @else
+                @elseif(! $aiUnavailable)
                     <div class="rounded-2xl border border-white/[0.06] bg-white/[0.02] py-20 text-center">
                         <div class="mx-auto mb-4 flex size-16 items-center justify-center rounded-2xl bg-white/[0.04]">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-8 text-zinc-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
