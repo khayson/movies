@@ -163,7 +163,7 @@ return [
     'features' => [
         Features::registration(),
         Features::resetPasswords(),
-        Features::emailVerification(),
+        // Features::emailVerification(), // re-enable after a verified Resend domain is configured
         Features::twoFactorAuthentication([
             'confirm' => true,
             'confirmPassword' => true,

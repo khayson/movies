@@ -59,7 +59,7 @@
                         <tr><td class="font-medium text-white">Styling</td><td class="text-teal-400">Tailwind CSS 4</td><td class="text-zinc-500">Vite-built assets</td></tr>
                         <tr><td class="font-medium text-white">Database</td><td class="text-teal-400">SQLite / Postgres</td><td class="text-zinc-500">Users, history, analytics</td></tr>
                         <tr><td class="font-medium text-white">Metadata</td><td class="text-teal-400">TMDB (+ TvMaze fallback)</td><td class="text-zinc-500">Cached per endpoint TTL</td></tr>
-                        <tr><td class="font-medium text-white">Auth</td><td class="text-teal-400">Fortify</td><td class="text-zinc-500">Email verify, 2FA, passkeys</td></tr>
+                        <tr><td class="font-medium text-white">Auth</td><td class="text-teal-400">Fortify</td><td class="text-zinc-500">2FA, passkeys (email verify optional / off until domain ready)</td></tr>
                         <tr><td class="font-medium text-white">Mail</td><td class="text-teal-400">Resend (free)</td><td class="text-zinc-500">Verification, resets, capped weekly digest</td></tr>
                         <tr><td class="!border-b-0 font-medium text-white">Deploy</td><td class="!border-b-0 text-teal-400">Docker / Render</td><td class="!border-b-0 text-zinc-500">External cron hits /cron/&#123;token&#125;</td></tr>
                     </tbody>

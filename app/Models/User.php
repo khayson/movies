@@ -4,8 +4,6 @@ namespace App\Models;
 
 use App\Support\UserPreferences;
 use Database\Factories\UserFactory;
-use Illuminate\Auth\Notifications\VerifyEmail;
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -14,7 +12,6 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Contracts\PasskeyUser;
 use Laravel\Fortify\PasskeyAuthenticatable;
@@ -39,7 +36,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  */
 #[Fillable(['name', 'email', 'password', 'preferences', 'date_of_birth', 'is_premium', 'premium_until'])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
-class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
+class User extends Authenticatable implements PasskeyUser
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
@@ -59,24 +56,6 @@ class User extends Authenticatable implements MustVerifyEmail, PasskeyUser
             'is_premium' => 'boolean',
             'premium_until' => 'datetime',
         ];
-    }
-
-    /**
-     * Send the email verification notification without crashing registration if mail fails.
-     */
-    public function sendEmailVerificationNotification(): void
-    {
-        try {
-            $this->notify(new VerifyEmail);
-        } catch (\Throwable $exception) {
-            report($exception);
-
-            Log::warning('Email verification notification failed.', [
-                'user_id' => $this->id,
-                'mailer' => config('mail.default'),
-                'message' => $exception->getMessage(),
-            ]);
-        }
     }
 
     /**

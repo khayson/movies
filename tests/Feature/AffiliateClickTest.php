@@ -49,11 +49,3 @@ test('affiliate click rejects invalid payload', function () {
 
     expect(AffiliateClick::count())->toBe(0);
 });
-
-test('unverified users are redirected from verified routes', function () {
-    $user = User::factory()->unverified()->create();
-
-    $this->actingAs($user)
-        ->get(route('dashboard'))
-        ->assertRedirect();
-});

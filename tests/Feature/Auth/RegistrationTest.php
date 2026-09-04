@@ -12,7 +12,7 @@ test('registration screen can be rendered', function () {
     $response->assertOk();
 });
 
-test('new users can register', function () {
+test('new users can register without email verification', function () {
     $response = $this->post(route('register.store'), [
         'name' => 'John Doe',
         'email' => 'test@example.com',
@@ -25,21 +25,7 @@ test('new users can register', function () {
 
     $this->assertAuthenticated();
 
-    $this->get(route('dashboard'))
-        ->assertRedirect(route('verification.notice'));
-});
+    $this->get(route('dashboard'))->assertOk();
 
-test('registration succeeds even when verification mailer fails', function () {
-    config(['mail.default' => 'resend', 'services.resend.key' => null]);
-
-    $response = $this->post(route('register.store'), [
-        'name' => 'Jane Doe',
-        'email' => 'jane@example.com',
-        'password' => 'password',
-        'password_confirmation' => 'password',
-    ]);
-
-    $response->assertSessionHasNoErrors();
-    $this->assertAuthenticated();
-    $this->assertDatabaseHas('users', ['email' => 'jane@example.com']);
+    expect(auth()->user()->email_verified_at)->not->toBeNull();
 });

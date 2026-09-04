@@ -24,10 +24,15 @@ class CreateNewUser implements CreatesNewUsers
             'password' => $this->passwordRules(),
         ])->validate();
 
-        return User::create([
+        $user = User::create([
             'name' => $input['name'],
             'email' => $input['email'],
             'password' => $input['password'],
         ]);
+
+        // Email verification is temporarily disabled — mark new accounts as verified.
+        $user->forceFill(['email_verified_at' => now()])->save();
+
+        return $user;
     }
 }
