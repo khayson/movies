@@ -1,9 +1,8 @@
 <?php
 
+use App\Http\Controllers\Api\AffiliateClickController;
 use App\Http\Controllers\Api\MediaCardController;
 use App\Http\Controllers\Api\SearchController;
-use App\Models\AffiliateClick;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
@@ -44,19 +43,9 @@ Route::get('/api/media/{type}/{id}', [MediaCardController::class, 'show'])->name
 Route::post('/api/media/{type}/{id}/watchlist', [MediaCardController::class, 'toggleWatchlist'])->name('api.media.watchlist')->where(['type' => 'movie|tv', 'id' => '[0-9]+']);
 Route::post('/api/media/{type}/{id}/favorite', [MediaCardController::class, 'toggleFavorite'])->name('api.media.favorite')->where(['type' => 'movie|tv', 'id' => '[0-9]+']);
 
-Route::post('/api/affiliate-click', function (Request $request) {
-    AffiliateClick::create([
-        'user_id' => auth()->id(),
-        'service_name' => $request->string('service_name')->limit(100),
-        'service_id' => $request->string('service_id')->limit(50),
-        'tmdb_id' => (int) $request->input('tmdb_id'),
-        'media_type' => $request->string('media_type')->limit(10),
-        'link' => $request->string('link')->limit(500),
-        'ip_address' => $request->ip(),
-    ]);
-
-    return response()->json(['ok' => true]);
-})->name('affiliate.click');
+Route::post('/api/affiliate-click', [AffiliateClickController::class, 'store'])
+    ->middleware('throttle:30,1')
+    ->name('affiliate.click');
 
 Route::view('/terms', 'pages.terms')->name('terms');
 Route::view('/privacy', 'pages.privacy')->name('privacy');

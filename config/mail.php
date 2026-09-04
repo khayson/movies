@@ -115,4 +115,15 @@ return [
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'StreamVault')),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Free-tier Digest Cap
+    |--------------------------------------------------------------------------
+    |
+    | Weekly digests can exhaust free transactional quotas (e.g. Resend 100/day).
+    | Cap how many digest emails leave in one run; leftover users wait until next week.
+    |
+    */
+    'digest_daily_limit' => (int) env('MAIL_DIGEST_DAILY_LIMIT', 90),
+
 ];

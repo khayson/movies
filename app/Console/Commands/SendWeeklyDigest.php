@@ -10,16 +10,22 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Mail;
 
-#[Signature('app:send-weekly-digest')]
-#[Description('Send weekly digest email to all users')]
+#[Signature('app:send-weekly-digest {--limit= : Max digests to send this run (free mail quota safety)}')]
+#[Description('Send weekly digest email to verified users (capped for free mail tiers)')]
 class SendWeeklyDigest extends Command
 {
     public function handle(Tmdb $tmdb): int
     {
         $trending = array_slice($tmdb->trending('all', 'week')['results'] ?? [], 0, 5);
         $weekAgo = now()->subWeek();
+        $limit = max(1, (int) ($this->option('limit') ?: config('mail.digest_daily_limit', 90)));
 
-        $users = User::whereNotNull('email_verified_at')->cursor();
+        $users = User::query()
+            ->whereNotNull('email_verified_at')
+            ->latest('updated_at')
+            ->limit($limit)
+            ->cursor();
+
         $sent = 0;
 
         foreach ($users as $user) {
@@ -37,7 +43,6 @@ class SendWeeklyDigest extends Command
                 ->values();
 
             $streak = 0;
-            $today = now()->toDateString();
             foreach ($currentStreak as $i => $day) {
                 $expected = now()->subDays($i)->toDateString();
                 if ($day === $expected) {
@@ -77,7 +82,7 @@ class SendWeeklyDigest extends Command
             $sent++;
         }
 
-        $this->info("Queued weekly digest for {$sent} users.");
+        $this->info("Queued weekly digest for {$sent} users (limit {$limit}).");
 
         return self::SUCCESS;
     }

@@ -2,6 +2,7 @@
 
 use App\Models\Review;
 use App\Models\WatchHistory;
+use App\Services\ProviderAnalyticsTracker;
 use App\Services\StreakService;
 use App\Services\Tmdb;
 use Livewire\Attributes\Layout;
@@ -13,7 +14,7 @@ new
 #[Title('Your Stats — StreamVault')]
 class extends Component
 {
-    public function with(StreakService $streakService, Tmdb $tmdb): array
+    public function with(StreakService $streakService, Tmdb $tmdb, ProviderAnalyticsTracker $analytics): array
     {
         $user = auth()->user();
         $streak = $streakService->calculate($user);
@@ -69,6 +70,8 @@ class extends Component
         $movieCount = $user->watchHistory()->visible()->where('media_type', 'movie')->count();
         $tvCount = $user->watchHistory()->visible()->where('media_type', 'tv')->count();
 
+        $providerSlos = $analytics->sloSummary();
+
         return [
             'totalWatched' => $totalWatched,
             'totalReviews' => $totalReviews,
@@ -85,6 +88,7 @@ class extends Component
             'maxMonthly' => $maxMonthly,
             'movieCount' => $movieCount,
             'tvCount' => $tvCount,
+            'providerSlos' => $providerSlos,
         ];
     }
 };
@@ -206,6 +210,51 @@ class extends Component
                     @endforeach
                 </div>
             </div>
+        </div>
+
+        {{-- Provider reliability (system SLO) --}}
+        <div class="mt-6 rounded-2xl border border-white/[0.06] bg-white/[0.02] p-6">
+            <div class="mb-4 flex items-end justify-between gap-3">
+                <div>
+                    <h2 class="text-sm font-semibold uppercase tracking-wider text-zinc-400">Streaming server health</h2>
+                    <p class="mt-1 text-xs text-zinc-500">Last 7 days of playback success across providers.</p>
+                </div>
+            </div>
+            @if(count($providerSlos) > 0)
+                <div class="overflow-x-auto">
+                    <table class="w-full min-w-[480px] text-left text-sm">
+                        <thead>
+                            <tr class="border-b border-white/[0.06] text-[10px] uppercase tracking-wider text-zinc-500">
+                                <th class="pb-2 pr-3 font-semibold">Provider</th>
+                                <th class="pb-2 pr-3 font-semibold">Success</th>
+                                <th class="pb-2 pr-3 font-semibold">Samples</th>
+                                <th class="pb-2 pr-3 font-semibold">Failures</th>
+                                <th class="pb-2 font-semibold">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody class="text-zinc-300">
+                            @foreach($providerSlos as $row)
+                                @php
+                                    $rate = $row['success_rate'];
+                                    $tone = $rate >= 85 ? 'text-emerald-400' : ($rate >= 60 ? 'text-amber-400' : 'text-red-400');
+                                    $probe = $row['probe_healthy'];
+                                    $status = $probe === false ? 'Down' : ($rate >= 85 ? 'Healthy' : ($rate >= 60 ? 'Degraded' : 'Poor'));
+                                    $statusTone = $probe === false ? 'text-red-400' : $tone;
+                                @endphp
+                                <tr class="border-b border-white/[0.04]">
+                                    <td class="py-2.5 pr-3 font-medium text-white">{{ $row['provider'] }}</td>
+                                    <td class="py-2.5 pr-3 tabular-nums {{ $tone }}">{{ $rate }}%</td>
+                                    <td class="py-2.5 pr-3 tabular-nums text-zinc-400">{{ $row['samples'] }}</td>
+                                    <td class="py-2.5 pr-3 tabular-nums text-zinc-400">{{ $row['failures'] }}</td>
+                                    <td class="py-2.5 font-medium {{ $statusTone }}">{{ $status }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @else
+                <p class="py-6 text-center text-sm text-zinc-600">No playback analytics yet. Watch a few titles and this fills in automatically.</p>
+            @endif
         </div>
 
         {{-- Streak calendar --}}

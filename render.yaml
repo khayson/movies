@@ -42,6 +42,16 @@ services:
         value: sync
       - key: CACHE_STORE
         value: database
+      - key: MAIL_MAILER
+        value: resend
+      - key: MAIL_FROM_ADDRESS
+        sync: false
+      - key: MAIL_FROM_NAME
+        value: StreamVault
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_DIGEST_DAILY_LIMIT
+        value: "90"
       - key: TMDB_API_KEY
         sync: false
       - key: RAPIDAPI_KEY

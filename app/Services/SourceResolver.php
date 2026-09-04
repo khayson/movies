@@ -2,37 +2,22 @@
 
 namespace App\Services;
 
-use App\Models\ProviderAnalytic;
 use App\Support\UserPreferences;
 use Illuminate\Support\Facades\Cache;
 
 class SourceResolver
 {
-    /** @var array<string, int> Base provider reliability scores (higher = better) */
-    private const PROVIDER_SCORES = [
-        'CineSrc Direct' => 88,
-        'VidCore' => 86,
-        'VidSrc' => 85,
-        'VidPhantom' => 84,
-        'CineSrc' => 83,
-        'VidLink' => 82,
-        'VidBinge' => 81,
-        'EzVidAPI' => 80,
-        'AutoEmbed' => 79,
-        'MoviesAPI' => 78,
-        'SuperEmbed' => 77,
-        'Embed API' => 76,
-        'VikingEmbed' => 75,
-    ];
-
-    /** Score band within which providers rotate as defaults for load balancing. */
-    private const DIVERSITY_SCORE_BAND = 6;
-
-    /** @var array<int, string> */
-    private const PLAYABLE_TYPES = ['embed', 'hls'];
+    public function __construct(
+        private ProviderScorer $scorer,
+        private ProviderAnalyticsTracker $analytics,
+        private EmbedUrlBuilder $embedUrlBuilder,
+        private CineSrcEmbed $cineSrcEmbed,
+        private CineSrcStreamResolver $cineSrcStreamResolver,
+        private Tmdb $tmdb,
+    ) {}
 
     /**
-     * @return array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool}>
+     * @return array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool, postmessage?: array<string, mixed>}>
      */
     public function resolve(int $tmdbId, string $mediaType = 'movie', ?int $season = null, ?int $episode = null): array
     {
@@ -71,228 +56,33 @@ class SourceResolver
     }
 
     /**
-     * @param  array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool}>  $sources
-     * @return array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool}>
-     */
-    private function applyUserSourceFilters(array $sources): array
-    {
-        if (! auth()->check()) {
-            return $sources;
-        }
-
-        $prefs = auth()->user()->preferences ?? [];
-        $excluded = UserPreferences::get($prefs, 'excluded_providers', []);
-        $excluded = is_array($excluded) ? $excluded : [];
-
-        if ($excluded !== []) {
-            $sources = array_values(array_filter(
-                $sources,
-                fn (array $source): bool => ! in_array($source['provider'] ?? '', $excluded, true),
-            ));
-        }
-
-        if (! UserPreferences::bool($prefs, 'show_trailer_in_servers', true)) {
-            $sources = array_values(array_filter(
-                $sources,
-                fn (array $source): bool => ($source['type'] ?? '') !== 'youtube',
-            ));
-        }
-
-        return $sources;
-    }
-
-    /**
-     * Select the best server index based on user history, provider reliability, time-of-day analytics, and error tracking.
+     * Select the best server index based on user history, provider reliability, analytics, and health.
      */
     public function recommendServer(int $tmdbId, string $mediaType, ?int $season, ?int $episode, ?string $excludeProvider = null): int
     {
-        $sources = $this->resolve($tmdbId, $mediaType, $season, $episode);
-        if (count($sources) === 0) {
-            return 0;
-        }
-
-        $prefs = auth()->check() ? (auth()->user()->preferences ?? []) : [];
-        $rememberLastServer = UserPreferences::bool($prefs, 'remember_last_server', true);
-        $useProviderScores = UserPreferences::bool($prefs, 'use_provider_scores', true);
-        $preferHlsDirect = UserPreferences::bool($prefs, 'prefer_hls_direct', false);
-
-        $userLastServer = null;
-        $defaultSource = null;
-
-        if (auth()->check()) {
-            $user = auth()->user();
-            if ($rememberLastServer) {
-                $history = $user->watchHistory()
-                    ->where('tmdb_id', $tmdbId)
-                    ->where('media_type', $mediaType)
-                    ->first();
-                $userLastServer = $history?->last_server;
-            }
-            $defaultSource = $user->preferences['default_source'] ?? null;
-        }
-
-        $hasUserPreference = is_string($defaultSource) && $defaultSource !== ''
-            || (is_string($userLastServer) && $userLastServer !== '');
-
-        $failedProviders = Cache::get('failed_providers', []);
-        $hourlyScores = $useProviderScores ? $this->getHourlyScores() : [];
-        $regionScores = $useProviderScores ? $this->getRegionScores() : [];
-        $usageBoosts = $useProviderScores ? $this->getUnderutilizedBoosts() : [];
-
-        /** @var array<int, array{index: int, score: int, provider: string}> $candidates */
-        $candidates = [];
-
-        foreach ($sources as $i => $source) {
-            if (! in_array($source['type'], self::PLAYABLE_TYPES, true)) {
-                continue;
-            }
-
-            $provider = $source['provider'] ?? '';
-
-            if ($excludeProvider !== null && $provider === $excludeProvider) {
-                continue;
-            }
-
-            if (! $useProviderScores) {
-                $score = 100 - $i;
-            } else {
-                $score = self::PROVIDER_SCORES[$provider] ?? 50;
-
-                if ($provider === $userLastServer) {
-                    $score += 12;
-                }
-
-                if ($provider === $defaultSource) {
-                    $score += 12;
-                }
-
-                if ($preferHlsDirect && $provider === 'CineSrc Direct') {
-                    $score += 15;
-                }
-
-                if (isset($hourlyScores[$provider])) {
-                    $score += $hourlyScores[$provider];
-                }
-
-                if (isset($regionScores[$provider])) {
-                    $score += $regionScores[$provider];
-                }
-
-                if (isset($usageBoosts[$provider])) {
-                    $score += $usageBoosts[$provider];
-                }
-
-                if (isset($failedProviders[$provider])) {
-                    $failedAt = $failedProviders[$provider];
-                    $minutesAgo = (time() - $failedAt) / 60;
-                    $score -= max(0, (int) (30 - $minutesAgo));
-                }
-
-                $probeHealthy = app(ProviderHealthProbe::class)->isHealthy($provider);
-                if ($probeHealthy === false) {
-                    $score -= 35;
-                }
-            }
-
-            if ($preferHlsDirect && ! $useProviderScores && $provider === 'CineSrc Direct') {
-                $score += 50;
-            }
-
-            $candidates[] = ['index' => $i, 'score' => $score, 'provider' => $provider];
-        }
-
-        if ($candidates === []) {
-            return 0;
-        }
-
-        usort($candidates, fn (array $a, array $b): int => $b['score'] <=> $a['score']);
-
-        if (! $useProviderScores || $hasUserPreference || $preferHlsDirect) {
-            return $candidates[0]['index'];
-        }
-
-        return $this->pickBalancedCandidate($candidates, $tmdbId, $mediaType, $season, $episode);
-    }
-
-    /**
-     * @param  array<int, array{index: int, score: int, provider: string}>  $candidates
-     */
-    private function pickBalancedCandidate(array $candidates, int $tmdbId, string $mediaType, ?int $season, ?int $episode): int
-    {
-        $topScore = $candidates[0]['score'];
-        $tier = array_values(array_filter(
-            $candidates,
-            fn (array $candidate): bool => $candidate['score'] >= $topScore - self::DIVERSITY_SCORE_BAND,
-        ));
-
-        if (count($tier) === 1) {
-            return $tier[0]['index'];
-        }
-
-        $seed = crc32("{$tmdbId}.{$mediaType}.{$season}.{$episode}");
-
-        usort($tier, fn (array $a, array $b): int => crc32($a['provider'].$seed) <=> crc32($b['provider'].$seed));
-
-        return $tier[0]['index'];
-    }
-
-    /**
-     * @return array<string, int>
-     */
-    private function getUnderutilizedBoosts(): array
-    {
-        return Cache::remember('provider_underutilized_boosts', now()->addMinutes(15), function (): array {
-            /** @var array<string, int> $totals */
-            $totals = ProviderAnalytic::query()
-                ->where('date', '>=', now()->subDays(7)->toDateString())
-                ->selectRaw('provider, SUM(success_count) as successes')
-                ->groupBy('provider')
-                ->pluck('successes', 'provider')
-                ->all();
-
-            if ($totals === []) {
-                return [];
-            }
-
-            $max = max($totals);
-
-            if ($max < 10) {
-                return [];
-            }
-
-            $boosts = [];
-
-            foreach ($totals as $provider => $successes) {
-                $ratio = $successes / $max;
-
-                if ($ratio >= 0.5) {
-                    continue;
-                }
-
-                $boosts[$provider] = (int) round((0.5 - $ratio) * 16);
-            }
-
-            return $boosts;
-        });
+        return $this->scorer->recommend(
+            $this->resolve($tmdbId, $mediaType, $season, $episode),
+            $tmdbId,
+            $mediaType,
+            $season,
+            $episode,
+            $excludeProvider,
+        );
     }
 
     public function reportFailure(string $provider): void
     {
-        $failed = Cache::get('failed_providers', []);
-        $failed[$provider] = time();
-        Cache::put('failed_providers', $failed, now()->addMinutes(30));
-
-        $this->recordAnalytic($provider, 'failure');
+        $this->analytics->reportFailure($provider);
     }
 
     public function reportSuccess(string $provider): void
     {
-        $this->recordAnalytic($provider, 'success');
+        $this->analytics->reportSuccess($provider);
     }
 
     public function reportBuffering(string $provider, int $loadTimeMs = 0): void
     {
-        $this->recordAnalytic($provider, 'buffer', $loadTimeMs);
+        $this->analytics->reportBuffering($provider, $loadTimeMs);
     }
 
     /**
@@ -360,138 +150,48 @@ class SourceResolver
      */
     public function getProviderHealth(): array
     {
-        $failed = Cache::get('failed_providers', []);
-        $health = [];
-
-        foreach (array_keys(self::PROVIDER_SCORES) as $provider) {
-            if (! isset($failed[$provider])) {
-                $health[$provider] = 100;
-
-                continue;
-            }
-
-            $minutesAgo = (time() - $failed[$provider]) / 60;
-            $health[$provider] = $minutesAgo > 15 ? 75 : ($minutesAgo > 5 ? 50 : 25);
-        }
-
-        return $health;
+        return $this->analytics->healthMap(array_keys(ProviderScorer::PROVIDER_SCORES));
     }
 
     /**
-     * @return array<string, int>
-     */
-    private function getHourlyScores(): array
-    {
-        $hour = (int) now()->format('G');
-
-        return Cache::remember("provider_hourly_scores.{$hour}", now()->addMinutes(15), function () use ($hour): array {
-            $analytics = ProviderAnalytic::where('hour_bucket', $hour)
-                ->where('date', '>=', now()->subDays(7)->toDateString())
-                ->selectRaw('provider, SUM(success_count) as wins, SUM(failure_count) as fails, AVG(avg_load_ms) as load_ms')
-                ->groupBy('provider')
-                ->get();
-
-            $scores = [];
-            foreach ($analytics as $row) {
-                $total = $row->wins + $row->fails;
-                if ($total < 5) {
-                    continue;
-                }
-
-                $successRate = $row->wins / $total;
-                $loadPenalty = min(10, (int) ($row->load_ms / 1000));
-                $scores[$row->provider] = (int) round($successRate * 15) - $loadPenalty;
-            }
-
-            return $scores;
-        });
-    }
-
-    /**
-     * @return array<string, int>
-     */
-    private function getRegionScores(): array
-    {
-        $region = $this->detectRegion();
-
-        return Cache::remember("provider_region_scores.{$region}", now()->addMinutes(30), function () use ($region): array {
-            $analytics = ProviderAnalytic::where('region', $region)
-                ->where('date', '>=', now()->subDays(7)->toDateString())
-                ->selectRaw('provider, SUM(success_count) as wins, SUM(failure_count) as fails, SUM(buffer_count) as buffers')
-                ->groupBy('provider')
-                ->get();
-
-            $scores = [];
-            foreach ($analytics as $row) {
-                $total = $row->wins + $row->fails;
-                if ($total < 5) {
-                    continue;
-                }
-
-                $successRate = $row->wins / $total;
-                $bufferRate = $total > 0 ? $row->buffers / $total : 0;
-                $scores[$row->provider] = (int) round($successRate * 10) - (int) round($bufferRate * 8);
-            }
-
-            return $scores;
-        });
-    }
-
-    private function recordAnalytic(string $provider, string $event, int $loadTimeMs = 0): void
-    {
-        $hour = (int) now()->format('G');
-        $region = $this->detectRegion();
-        $date = now()->toDateString();
-
-        $record = ProviderAnalytic::firstOrCreate(
-            ['provider' => $provider, 'region' => $region, 'hour_bucket' => $hour, 'date' => $date],
-            ['success_count' => 0, 'failure_count' => 0, 'buffer_count' => 0, 'avg_load_ms' => 0],
-        );
-
-        match ($event) {
-            'success' => $record->increment('success_count'),
-            'failure' => $record->increment('failure_count'),
-            'buffer' => $record->increment('buffer_count'),
-            default => null,
-        };
-
-        if ($loadTimeMs > 0 && $record->success_count > 0) {
-            $currentAvg = $record->avg_load_ms;
-            $newAvg = (int) round(($currentAvg * ($record->success_count - 1) + $loadTimeMs) / $record->success_count);
-            $record->update(['avg_load_ms' => $newAvg]);
-        }
-    }
-
-    private function detectRegion(): string
-    {
-        $ip = request()->ip();
-
-        if ($ip === '127.0.0.1' || $ip === '::1') {
-            return 'local';
-        }
-
-        return Cache::remember("geo_region.{$ip}", now()->addHours(24), function (): string {
-            $timezone = config('app.timezone', 'UTC');
-
-            return match (true) {
-                str_contains($timezone, 'America') => 'NA',
-                str_contains($timezone, 'Europe') => 'EU',
-                str_contains($timezone, 'Asia') => 'AS',
-                str_contains($timezone, 'Africa') => 'AF',
-                str_contains($timezone, 'Australia'), str_contains($timezone, 'Pacific') => 'OC',
-                default => 'unknown',
-            };
-        });
-    }
-
-    /**
+     * @param  array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool}>  $sources
      * @return array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool}>
+     */
+    private function applyUserSourceFilters(array $sources): array
+    {
+        if (! auth()->check()) {
+            return $sources;
+        }
+
+        $prefs = auth()->user()->preferences ?? [];
+        $excluded = UserPreferences::get($prefs, 'excluded_providers', []);
+        $excluded = is_array($excluded) ? $excluded : [];
+
+        if ($excluded !== []) {
+            $sources = array_values(array_filter(
+                $sources,
+                fn (array $source): bool => ! in_array($source['provider'] ?? '', $excluded, true),
+            ));
+        }
+
+        if (! UserPreferences::bool($prefs, 'show_trailer_in_servers', true)) {
+            $sources = array_values(array_filter(
+                $sources,
+                fn (array $source): bool => ($source['type'] ?? '') !== 'youtube',
+            ));
+        }
+
+        return $sources;
+    }
+
+    /**
+     * @return array<int, array{type: string, url: string, quality: string, provider: string, supports_postmessage?: bool, postmessage?: array<string, mixed>}>
      */
     private function resolveCineSrc(int $tmdbId, string $mediaType, ?int $season, ?int $episode): array
     {
         $options = $this->cineSrcOptions($tmdbId, $mediaType);
 
-        $embedUrl = app(CineSrcEmbed::class)->buildUrl($tmdbId, $mediaType, $season, $episode, $options);
+        $embedUrl = $this->cineSrcEmbed->buildUrl($tmdbId, $mediaType, $season, $episode, $options);
 
         $sources = [[
             'type' => 'embed',
@@ -502,7 +202,7 @@ class SourceResolver
             'postmessage' => $this->postMessageConfig('CineSrc'),
         ]];
 
-        $direct = app(CineSrcStreamResolver::class)->resolve($tmdbId, $mediaType, $season, $episode);
+        $direct = $this->cineSrcStreamResolver->resolve($tmdbId, $mediaType, $season, $episode);
 
         if ($direct !== null) {
             $sources[] = [
@@ -624,9 +324,8 @@ class SourceResolver
     private function applyEmbedPersonalization(array $sources, int $tmdbId, string $mediaType): array
     {
         $context = $this->playbackContext($tmdbId, $mediaType);
-        $builder = app(EmbedUrlBuilder::class);
 
-        return array_map(function (array $source) use ($builder, $context): array {
+        return array_map(function (array $source) use ($context): array {
             if (($source['type'] ?? '') !== 'embed') {
                 return $source;
             }
@@ -638,7 +337,7 @@ class SourceResolver
             }
 
             if (isset($providerConfig['embed_options'])) {
-                $source['url'] = $builder->enrich($source['url'], $providerConfig, $context);
+                $source['url'] = $this->embedUrlBuilder->enrich($source['url'], $providerConfig, $context);
             }
 
             $postMessage = $this->postMessageConfig($source['provider'] ?? '');
@@ -748,10 +447,8 @@ class SourceResolver
      */
     private function resolveTrailer(int $tmdbId, string $mediaType): array
     {
-        $tmdb = app(Tmdb::class);
-
         try {
-            $details = $tmdb->details($mediaType, $tmdbId);
+            $details = $this->tmdb->details($mediaType, $tmdbId);
             $videos = $details['videos']['results'] ?? [];
 
             foreach ($videos as $video) {
