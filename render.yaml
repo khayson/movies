@@ -1,9 +1,3 @@
-databases:
-  - name: movies-db
-    plan: free
-    databaseName: movies
-    user: movies
-
 services:
   - type: web
     name: movies
@@ -28,10 +22,9 @@ services:
         value: info
       - key: DB_CONNECTION
         value: pgsql
+      # Set in Render dashboard to your Neon (or other free Postgres) connection URI.
       - key: DB_URL
-        fromDatabase:
-          name: movies-db
-          property: connectionString
+        sync: false
       - key: DB_SSLMODE
         value: require
       - key: SESSION_DRIVER
