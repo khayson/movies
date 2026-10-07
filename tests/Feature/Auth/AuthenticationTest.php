@@ -65,3 +65,39 @@ test('users can logout', function () {
 
     $this->assertGuest();
 });
+
+test('users can authenticate via json request and receive toast payload', function () {
+    $user = User::factory()->create();
+
+    $response = $this->postJson(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'password',
+    ]);
+
+    $response
+        ->assertOk()
+        ->assertJson([
+            'two_factor' => false,
+        ])
+        ->assertJsonStructure(['two_factor', 'redirect'])
+        ->assertSessionHas('toast');
+
+    $toast = session('toast');
+    expect($toast['dataset']['variant'])->toBe('success');
+
+    $this->assertAuthenticated();
+});
+
+test('invalid json authentication request returns validation error', function () {
+    $user = User::factory()->create();
+
+    $response = $this->postJson(route('login.store'), [
+        'email' => $user->email,
+        'password' => 'wrong-password',
+    ]);
+
+    $response->assertUnprocessable()
+        ->assertJsonValidationErrors(['email']);
+
+    $this->assertGuest();
+});

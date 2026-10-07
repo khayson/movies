@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * @property int $id
- * @property int $user_id
+ * @property int|null $user_id
  * @property string $type
  * @property string $title
  * @property string $message
@@ -55,6 +55,34 @@ class UserNotification extends Model
     public function scopeUnread(Builder $query): Builder
     {
         return $query->whereNull('read_at');
+    }
+
+    /**
+     * Scope for a specific visitor (authenticated user sees personal + broadcasts; guest sees broadcasts).
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeForVisitor(Builder $query, ?int $userId = null): Builder
+    {
+        if ($userId) {
+            return $query->where(function (Builder $q) use ($userId): void {
+                $q->where('user_id', $userId)->orWhereNull('user_id');
+            });
+        }
+
+        return $query->whereNull('user_id');
+    }
+
+    /**
+     * Scope for public broadcast notifications.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeBroadcast(Builder $query): Builder
+    {
+        return $query->whereNull('user_id');
     }
 
     public function markAsRead(): void

@@ -37,6 +37,7 @@ Route::livewire('/watch-parties', 'pages::watch-parties')->name('watch-parties')
 Route::livewire('/stats', 'pages::stats-dashboard')->name('stats');
 Route::livewire('/trending', 'pages::trending')->name('trending');
 Route::livewire('/quiz', 'pages::quiz')->name('quiz');
+Route::livewire('/notifications', 'pages::notifications')->name('notifications');
 
 Route::get('/api/search', SearchController::class)->name('api.search');
 Route::get('/api/media/{type}/{id}', [MediaCardController::class, 'show'])->name('api.media.show')->where(['type' => 'movie|tv', 'id' => '[0-9]+']);
@@ -82,7 +83,6 @@ Route::get('/cron/{token}', function (string $token) {
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');
-    Route::livewire('/notifications', 'pages::notifications')->name('notifications');
     Route::livewire('/badges', 'pages::badges')->name('badges');
     Route::livewire('/messages', 'pages::messages')->name('messages');
     Route::livewire('/messages/{conversationId}', 'pages::message-thread')->name('messages.thread');

@@ -9,6 +9,7 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('app:send-weekly-digest')->weeklyOn(1, '9:00');
+Schedule::command('app:generate-notifications')->dailyAt('08:00');
 Schedule::command('app:pre-warm-sources')->everyFifteenMinutes();
 Schedule::command('app:probe-provider-health')->everyFifteenMinutes();
 Schedule::command('queue:work --stop-when-empty --max-time=50 --tries=3 --sleep=0')

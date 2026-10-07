@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill(artifact-design)",
+      "Skill(artifact-design:*)",
+      "WebSearch",
+      "mcp__laravel-boost__search-docs",
+      "WebFetch(domain:cinesrc.st)",
+      "WebFetch(domain:greasyfork.org)",
+      "WebFetch(domain:urlquery.net)",
+      "WebFetch(domain:www.scamadviser.com)",
+      "PowerShell(vendor/bin/pint --dirty --format agent 2>&1)",
+      "PowerShell(php artisan test --compact 2>&1)",
+      "Bash(vendor/bin/pint --dirty --format agent)"
+    ]
+  }
+}

@@ -108,6 +108,7 @@ test('tmdb service serves stale cache when the upstream keeps failing', function
     Cache::put('tmdb.'.md5('/movie/980431'.serialize([
         'append_to_response' => 'credits,videos,similar,recommendations,reviews,external_ids',
         'include_adult' => false,
+        'language' => 'en-US',
     ])).'.stale', [
         'id' => 980431,
         'title' => 'Cached Movie',

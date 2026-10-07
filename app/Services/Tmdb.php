@@ -68,9 +68,9 @@ class Tmdb
                 $response = Http::baseUrl($host)
                     ->withToken(config('tmdb.api_key'))
                     ->acceptJson()
-                    ->timeout(8)
-                    ->connectTimeout(3)
-                    ->retry(1, 150, function (Throwable $exception, PendingRequest $request): bool {
+                    ->timeout(4)
+                    ->connectTimeout(2)
+                    ->retry(1, 50, function (Throwable $exception, PendingRequest $request): bool {
                         return $exception instanceof ConnectionException
                             || ($exception instanceof RequestException && $exception->response->serverError());
                     })
@@ -182,13 +182,17 @@ class Tmdb
         if (! $user) {
             $params['include_adult'] = false;
 
+            if (! isset($params['language'])) {
+                $params['language'] = 'en-US';
+            }
+
             return $params;
         }
 
         $prefs = $user->preferences ?? [];
 
-        if (! isset($params['language']) && ! empty($prefs['content_language'])) {
-            $params['language'] = $prefs['content_language'];
+        if (! isset($params['language'])) {
+            $params['language'] = ! empty($prefs['content_language']) ? $prefs['content_language'] : 'en-US';
         }
 
         $params['include_adult'] = $user->canViewAdultContent();

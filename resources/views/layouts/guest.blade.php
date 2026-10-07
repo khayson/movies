@@ -89,9 +89,9 @@
                 <div class="flex items-center gap-1.5">
                     @include('partials.smart-search', ['compact' => true])
 
-                    @auth
-                        <livewire:notification-dropdown />
+                    <livewire:notification-dropdown />
 
+                    @auth
                         <div class="ml-1 h-5 w-px bg-white/[0.08]"></div>
 
                         @include('partials.user-account-menu')

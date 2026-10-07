@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             ContentSeeder::class,
             SocialSeeder::class,
             EngagementSeeder::class,
+            BroadcastNotificationSeeder::class,
         ]);
     }
 }
