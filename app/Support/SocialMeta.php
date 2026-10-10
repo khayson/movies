@@ -3,6 +3,7 @@
 namespace App\Support;
 
 use App\Services\Tmdb;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
@@ -20,6 +21,32 @@ class SocialMeta
         $agent = (string) $request->userAgent();
 
         return $agent !== '' && preg_match(self::CRAWLER_PATTERN, $agent) === 1;
+    }
+
+    /**
+     * @param  array<string, mixed>  $media
+     */
+    public static function isUpcoming(array $media): bool
+    {
+        $date = (string) ($media['release_date'] ?? $media['first_air_date'] ?? '');
+
+        return $date !== '' && $date > now()->toDateString();
+    }
+
+    /**
+     * Human-readable premiere / release date, or null when unknown.
+     *
+     * @param  array<string, mixed>  $media
+     */
+    public static function releaseLabel(array $media): ?string
+    {
+        $date = (string) ($media['release_date'] ?? $media['first_air_date'] ?? '');
+
+        if ($date === '') {
+            return null;
+        }
+
+        return Carbon::parse($date)->format('M j, Y');
     }
 
     /**
@@ -46,11 +73,26 @@ class SocialMeta
         $name = (string) ($media['title'] ?? $media['name'] ?? 'Untitled');
         $year = Str::substr((string) ($media['release_date'] ?? $media['first_air_date'] ?? ''), 0, 4);
         $displayTitle = $year !== '' ? "{$name} ({$year})" : $name;
+        $upcoming = self::isUpcoming($media);
+        $releaseLabel = self::releaseLabel($media);
+
+        if ($upcoming) {
+            $displayTitle = 'Coming Soon: '.$displayTitle;
+        }
 
         $overview = trim((string) ($media['overview'] ?? ''));
-        $description = $overview !== ''
-            ? Str::limit($overview, 160)
-            : "Watch {$displayTitle} on ".config('app.name').'.';
+        if ($upcoming) {
+            $prefix = $releaseLabel !== null
+                ? "Coming soon · Premieres {$releaseLabel}."
+                : 'Coming soon.';
+            $description = $overview !== ''
+                ? Str::limit($prefix.' '.$overview, 160)
+                : $prefix.' Catch trailers and details on '.config('app.name').'.';
+        } else {
+            $description = $overview !== ''
+                ? Str::limit($overview, 160)
+                : "Watch {$displayTitle} on ".config('app.name').'.';
+        }
 
         $image = null;
         if (! empty($media['backdrop_path'])) {
@@ -94,8 +136,17 @@ class SocialMeta
         $year = Str::substr((string) ($media['release_date'] ?? $media['first_air_date'] ?? ''), 0, 4);
         $label = $year !== '' ? "{$name} ({$year})" : $name;
         $kind = $mediaType === 'tv' ? 'TV show' : 'movie';
+        $app = config('app.name');
 
-        return "Watch {$label} — stream this {$kind} on ".config('app.name');
+        if (self::isUpcoming($media)) {
+            $releaseLabel = self::releaseLabel($media);
+
+            return $releaseLabel !== null
+                ? "Coming soon: {$label} premieres {$releaseLabel} — trailers & details on {$app}"
+                : "Coming soon: {$label} — trailers & details on {$app}";
+        }
+
+        return "Watch {$label} — stream this {$kind} on {$app}";
     }
 
     /**

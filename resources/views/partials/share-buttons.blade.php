@@ -3,9 +3,14 @@
     $shareText = $shareText ?? $shareTitle;
     $shareUrl = $shareUrl ?? url()->current();
     $shareImage = $shareImage ?? null;
+    $isUpcoming = (bool) ($isUpcoming ?? false);
+    $shareReleaseDate = $shareReleaseDate ?? null;
     $encodedText = rawurlencode($shareText);
     $encodedUrl = rawurlencode($shareUrl);
     $whatsAppBody = rawurlencode($shareText."\n".$shareUrl);
+    $copyToastText = $isUpcoming
+        ? 'Paste it alone in chat for a Coming Soon preview.'
+        : 'Paste it alone in chat for a rich preview.';
 @endphp
 
 <div
@@ -13,6 +18,24 @@
         showShare: false,
         copied: false,
         canNativeShare: typeof navigator !== 'undefined' && typeof navigator.share === 'function',
+        showCopyToast(ok) {
+            const heading = ok ? 'Link copied' : 'Copy failed';
+            const text = ok ? @js($copyToastText) : 'Clipboard access was blocked. Try again or copy from the address bar.';
+            const variant = ok ? 'success' : 'danger';
+
+            if (window.Flux && typeof window.Flux.toast === 'function') {
+                window.Flux.toast({ heading, text, variant, duration: 3500 });
+                return;
+            }
+
+            window.dispatchEvent(new CustomEvent('toast-show', {
+                detail: {
+                    slots: { heading, text },
+                    dataset: { variant },
+                    duration: 3500,
+                },
+            }));
+        },
         async nativeShare() {
             try {
                 await navigator.share({ title: @js($shareTitle), text: @js($shareText), url: @js($shareUrl) });
@@ -27,8 +50,12 @@
             try {
                 await navigator.clipboard.writeText(@js($shareUrl));
                 this.copied = true;
+                this.showShare = false;
+                this.showCopyToast(true);
                 setTimeout(() => this.copied = false, 2000);
-            } catch (_) {}
+            } catch (_) {
+                this.showCopyToast(false);
+            }
         }
     }"
     class="relative inline-block"
@@ -57,16 +84,30 @@
         @if($shareImage)
             <div class="relative aspect-[16/9] overflow-hidden bg-zinc-950">
                 <img src="{{ $shareImage }}" alt="{{ $shareTitle }}" class="size-full object-cover" loading="lazy">
-                <div class="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/20 to-transparent"></div>
+                <div class="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/40 to-transparent"></div>
+                @if($isUpcoming)
+                    <span class="absolute left-2.5 top-2.5 rounded-md bg-amber-500 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-950 shadow-sm">Coming soon</span>
+                @endif
                 <div class="absolute inset-x-0 bottom-0 p-3">
                     <p class="line-clamp-2 text-sm font-semibold text-white">{{ $shareTitle }}</p>
-                    <p class="mt-0.5 text-[11px] text-zinc-400">{{ parse_url($shareUrl, PHP_URL_HOST) }}</p>
+                    @if($isUpcoming && $shareReleaseDate)
+                        <p class="mt-0.5 text-[11px] font-medium text-amber-300">Premieres {{ $shareReleaseDate }}</p>
+                    @else
+                        <p class="mt-0.5 text-[11px] text-zinc-400">{{ parse_url($shareUrl, PHP_URL_HOST) }}</p>
+                    @endif
                 </div>
             </div>
         @else
             <div class="border-b border-white/[0.06] px-3 py-2.5">
+                @if($isUpcoming)
+                    <span class="mb-1.5 inline-flex rounded-md bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300">Coming soon</span>
+                @endif
                 <p class="line-clamp-2 text-sm font-semibold text-white">{{ $shareTitle }}</p>
-                <p class="mt-0.5 text-[11px] text-zinc-500">{{ parse_url($shareUrl, PHP_URL_HOST) }}</p>
+                @if($isUpcoming && $shareReleaseDate)
+                    <p class="mt-0.5 text-[11px] font-medium text-amber-300/90">Premieres {{ $shareReleaseDate }}</p>
+                @else
+                    <p class="mt-0.5 text-[11px] text-zinc-500">{{ parse_url($shareUrl, PHP_URL_HOST) }}</p>
+                @endif
             </div>
         @endif
 
@@ -87,7 +128,7 @@
                 class="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/[0.06]"
             >
                 <svg xmlns="http://www.w3.org/2000/svg" class="size-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" /></svg>
-                <span x-text="copied ? 'Copied — paste alone in chat' : 'Copy link'"></span>
+                <span x-text="copied ? 'Copied!' : 'Copy link'"></span>
             </button>
 
             <a href="https://wa.me/?text={{ $whatsAppBody }}"

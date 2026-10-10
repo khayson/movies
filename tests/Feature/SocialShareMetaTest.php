@@ -96,3 +96,43 @@ test('share text includes a modern pitch without only dumping the raw url', func
         ->and($text)->toContain(config('app.name'))
         ->and($text)->toContain('Watch');
 });
+
+test('upcoming titles use coming soon share copy and open graph framing', function () {
+    $release = now()->addMonths(2)->toDateString();
+    $media = [
+        'title' => 'Dune Messiah',
+        'overview' => 'Paul Atreides navigates prophecy and empire.',
+        'backdrop_path' => '/dune.jpg',
+        'release_date' => $release,
+    ];
+
+    $text = SocialMeta::shareText($media, 'movie');
+    $payload = SocialMeta::payload($media, 'movie', 'https://example.test/movies/999');
+
+    expect(SocialMeta::isUpcoming($media))->toBeTrue()
+        ->and($text)->toContain('Coming soon')
+        ->and($text)->toContain('premieres')
+        ->and($text)->not->toContain('Watch Dune')
+        ->and($payload['ogTitle'])->toStartWith('Coming Soon:')
+        ->and($payload['ogDescription'])->toContain('Coming soon')
+        ->and($payload['ogDescription'])->toContain('Premieres');
+});
+
+test('share menu marks upcoming titles as coming soon and toasts on copy', function () {
+    $html = view('partials.share-buttons', [
+        'shareTitle' => 'Future Film (2026)',
+        'shareText' => 'Coming soon: Future Film (2026) premieres Mar 15, 2026 — trailers & details on StreamVault',
+        'shareUrl' => 'https://example.test/movies/1',
+        'shareImage' => 'https://image.tmdb.org/t/p/w780/future.jpg',
+        'isUpcoming' => true,
+        'shareReleaseDate' => 'Mar 15, 2026',
+    ])->render();
+
+    expect($html)
+        ->toContain('Coming soon')
+        ->toContain('Premieres Mar 15, 2026')
+        ->toContain('Coming Soon preview')
+        ->toContain('Flux.toast')
+        ->toContain('Link copied')
+        ->toContain('showCopyToast');
+});

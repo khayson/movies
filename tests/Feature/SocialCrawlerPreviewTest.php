@@ -36,7 +36,8 @@ test('whatsapp crawler receives a lightweight open graph document for movie link
         ->assertSee('property="og:title"', false)
         ->assertSee('Fight Club (1999)', false)
         ->assertSee('/w1280/', false)
-        ->assertDontSee('livewire', false);
+        ->assertDontSee('Watch Now', false)
+        ->assertDontSee('site-nav', false);
 
     expect($response->headers->get('Cache-Control'))->toContain('max-age=3600');
 });
@@ -54,5 +55,6 @@ test('whatsapp crawler receives open graph tags for watch links', function () {
         ->assertOk()
         ->assertSee('property="og:image"', false)
         ->assertSee('Fight Club (1999)', false)
-        ->assertDontSee('bindPlayerMessages', false);
+        ->assertDontSee('bindPlayerMessages', false)
+        ->assertDontSee('site-nav', false);
 });

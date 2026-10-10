@@ -469,6 +469,8 @@ class extends Component
                         'shareText' => \App\Support\SocialMeta::shareText($show, 'tv'),
                         'shareUrl' => route('tv.detail', $this->tmdbId),
                         'shareImage' => \App\Support\SocialMeta::shareImage($show),
+                        'isUpcoming' => $isUpcoming,
+                        'shareReleaseDate' => $isUpcoming ? \App\Support\SocialMeta::releaseLabel($show) : null,
                     ])
                 </div>
             </div>

@@ -335,6 +335,8 @@ class extends Component
                         'shareText' => \App\Support\SocialMeta::shareText($movie, 'movie'),
                         'shareUrl' => route('movies.detail', $this->tmdbId),
                         'shareImage' => \App\Support\SocialMeta::shareImage($movie),
+                        'isUpcoming' => $isUpcoming,
+                        'shareReleaseDate' => $isUpcoming ? \App\Support\SocialMeta::releaseLabel($movie) : null,
                     ])
                 </div>
             </div>
