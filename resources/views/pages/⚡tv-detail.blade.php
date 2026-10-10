@@ -6,7 +6,7 @@ use App\Services\Imdb;
 use App\Services\RottenTomatoes;
 use App\Services\StreamingAvailability;
 use App\Services\Tmdb;
-use Illuminate\Support\Facades\View;
+use App\Support\SocialMeta;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Validate;
 use Livewire\Component;
@@ -200,10 +200,7 @@ class extends Component
             abort(404);
         }
 
-        View::share('ogTitle', ($show['name'] ?? 'TV Show') . ' — ' . config('app.name'));
-        View::share('ogDescription', Str::limit($show['overview'] ?? '', 200));
-        View::share('ogImage', ! empty($show['backdrop_path']) ? $tmdb->backdropUrl($show['backdrop_path']) : null);
-        View::share('ogType', 'video.tv_show');
+        SocialMeta::forMedia($show, 'tv', route('tv.detail', $this->tmdbId));
 
         $isFavorited = auth()->check() && auth()->user()->hasFavorited($this->tmdbId, 'tv');
         $isOnWatchlist = auth()->check() && auth()->user()->hasOnWatchlist($this->tmdbId, 'tv');
@@ -467,7 +464,12 @@ class extends Component
                         {{ $isOnWatchlist ? 'On Watchlist' : 'Watchlist' }}
                     </button>
                     @include('partials.add-to-collection', ['mediaTitle' => $title, 'mediaPoster' => $show['poster_path'] ?? null])
-                    @include('partials.share-buttons', ['shareTitle' => $title . ' — StreamVault', 'shareUrl' => route('tv.detail', $this->tmdbId)])
+                    @include('partials.share-buttons', [
+                        'shareTitle' => ($show['name'] ?? $title).(! empty($show['first_air_date']) ? ' ('.Str::substr($show['first_air_date'], 0, 4).')' : ''),
+                        'shareText' => \App\Support\SocialMeta::shareText($show, 'tv'),
+                        'shareUrl' => route('tv.detail', $this->tmdbId),
+                        'shareImage' => \App\Support\SocialMeta::shareImage($show),
+                    ])
                 </div>
             </div>
         </div>

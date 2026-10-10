@@ -3,6 +3,7 @@
 use App\Services\SourceResolver;
 use App\Services\StreamingAvailability;
 use App\Services\Tmdb;
+use App\Support\SocialMeta;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -275,6 +276,14 @@ class extends Component
         try {
             $details = $tmdb->details($this->type, $this->tmdbId);
         } catch (\Throwable) {
+        }
+
+        if (! empty($details)) {
+            $canonical = $this->type === 'tv'
+                ? route('watch', ['type' => 'tv', 'tmdbId' => $this->tmdbId, 'season' => $this->season, 'episode' => $this->episode])
+                : route('watch', ['type' => 'movie', 'tmdbId' => $this->tmdbId]);
+
+            SocialMeta::forMedia($details, $this->type, $canonical);
         }
 
         $releaseDate = $details['release_date'] ?? $details['first_air_date'] ?? '';
@@ -800,10 +809,18 @@ class extends Component
                                 @endif
                             </div>
                         </div>
-                        <a href="{{ route($detailRoute, $tmdbId) }}" class="hidden shrink-0 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-zinc-300 transition hover:border-white/[0.15] hover:bg-white/[0.06] hover:text-white sm:inline-flex" wire:navigate>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
-                            Details
-                        </a>
+                        <div class="flex shrink-0 items-center gap-2">
+                            @include('partials.share-buttons', [
+                                'shareTitle' => $title.($year ? " ({$year})" : ''),
+                                'shareText' => \App\Support\SocialMeta::shareText($details, $type),
+                                'shareUrl' => route($detailRoute, $tmdbId),
+                                'shareImage' => \App\Support\SocialMeta::shareImage($details),
+                            ])
+                            <a href="{{ route($detailRoute, $tmdbId) }}" class="hidden items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-zinc-300 transition hover:border-white/[0.15] hover:bg-white/[0.06] hover:text-white sm:inline-flex" wire:navigate>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
+                                Details
+                            </a>
+                        </div>
                     </div>
                 </div>
 
