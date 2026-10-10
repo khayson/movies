@@ -17,7 +17,8 @@ Route::livewire('/watch/{type}/{tmdbId}/{season?}/{episode?}', 'pages::watch-pag
 
 Route::livewire('/genres', 'pages::genre-index')->name('genres.index');
 Route::livewire('/genres/{type}/{genreId}/{genreName}', 'pages::genre-browse')->name('genres.browse');
-Route::livewire('/upcoming', 'pages::upcoming-index')->name('upcoming.index');
+Route::livewire('/coming-soon', 'pages::upcoming-index')->name('coming-soon');
+Route::redirect('/upcoming', '/coming-soon')->name('upcoming.index');
 Route::livewire('/new-releases', 'pages::new-releases')->name('new-releases');
 
 Route::livewire('/collections', 'pages::collections-index')->name('collections.index');

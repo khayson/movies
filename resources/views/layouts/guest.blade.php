@@ -54,10 +54,10 @@
                                 ['route' => 'movies.index', 'label' => 'Movies', 'match' => 'movies.*'],
                                 ['route' => 'tv.index', 'label' => 'TV Shows', 'match' => 'tv.*'],
                                 ['route' => 'anime.index', 'label' => 'Anime', 'match' => 'anime.*', 'accent' => 'text-fuchsia-400/90 hover:text-fuchsia-300'],
+                                ['route' => 'coming-soon', 'label' => 'Coming Soon', 'match' => 'coming-soon'],
                                 ['route' => 'trending', 'label' => 'Trending', 'match' => 'trending'],
                                 ['route' => 'genres.index', 'label' => 'Genres', 'match' => 'genres.*'],
                                 ['route' => 'discover', 'label' => 'Discover', 'match' => 'discover'],
-                                ['route' => 'quiz', 'label' => 'Trivia', 'match' => 'quiz'],
                             ];
                         @endphp
                         @foreach($navItems as $nav)
@@ -115,10 +115,10 @@
                         ['route' => 'movies.index', 'label' => 'Movies', 'match' => 'movies.*'],
                         ['route' => 'tv.index', 'label' => 'TV Shows', 'match' => 'tv.*'],
                         ['route' => 'anime.index', 'label' => 'Anime', 'match' => 'anime.*', 'accent' => 'text-fuchsia-400/90'],
+                        ['route' => 'coming-soon', 'label' => 'Coming Soon', 'match' => 'coming-soon'],
                         ['route' => 'trending', 'label' => 'Trending', 'match' => 'trending'],
                         ['route' => 'genres.index', 'label' => 'Genres', 'match' => 'genres.*'],
                         ['route' => 'discover', 'label' => 'Discover', 'match' => 'discover'],
-                        ['route' => 'quiz', 'label' => 'Trivia', 'match' => 'quiz'],
                     ];
                 @endphp
                 @foreach($mobileNav as $nav)
@@ -188,7 +188,7 @@
                                 <li><a href="{{ route('discover') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Advanced Search</a></li>
                                 <li><a href="{{ route('mood.index') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Mood Picker</a></li>
                                 <li><a href="{{ route('new-releases') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>New Releases</a></li>
-                                <li><a href="{{ route('upcoming.index') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Upcoming</a></li>
+                                <li><a href="{{ route('coming-soon') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Coming Soon</a></li>
                                 <li><a href="{{ route('trailers') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Trailers</a></li>
                             </ul>
                         </div>

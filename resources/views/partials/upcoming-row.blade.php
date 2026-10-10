@@ -5,7 +5,7 @@
         <h2 class="text-xl font-bold tracking-tight text-white">{{ $title }}</h2>
         <span class="rounded-full bg-red-600/20 px-2.5 py-0.5 text-xs font-bold text-red-400">Coming Soon</span>
         <div class="h-px flex-1 bg-gradient-to-r from-white/[0.06] to-transparent"></div>
-        <a href="{{ route('upcoming.index') }}" class="text-sm font-medium text-zinc-500 transition hover:text-white" wire:navigate>
+        <a href="{{ route('coming-soon') }}" class="text-sm font-medium text-zinc-500 transition hover:text-white" wire:navigate>
             See All
         </a>
     </div>

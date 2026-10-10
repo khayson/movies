@@ -345,6 +345,32 @@ class Tmdb
     }
 
     /**
+     * Future theatrical / streaming titles for the public Coming Soon hub.
+     *
+     * @return array<string, mixed>
+     */
+    public function comingSoon(string $type = 'movie', int $page = 1): array
+    {
+        $today = now()->toDateString();
+
+        if ($type === 'tv') {
+            return $this->get('/discover/tv', [
+                'include_null_first_air_dates' => false,
+                'first_air_date.gte' => $today,
+                'sort_by' => 'popularity.desc',
+                'page' => $page,
+            ]);
+        }
+
+        return $this->get('/discover/movie', [
+            'include_adult' => false,
+            'primary_release_date.gte' => $today,
+            'sort_by' => 'popularity.desc',
+            'page' => $page,
+        ]);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function nowPlaying(int $page = 1): array

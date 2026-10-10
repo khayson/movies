@@ -39,8 +39,8 @@ test('genre browse page loads successfully', function () {
     ]))->assertOk();
 });
 
-test('upcoming page loads successfully', function () {
-    $this->get(route('upcoming.index'))->assertOk();
+test('upcoming path still resolves via coming soon redirect', function () {
+    $this->get(route('upcoming.index'))->assertRedirect('/coming-soon');
 });
 
 test('new releases page loads successfully', function () {
