@@ -3,20 +3,43 @@
 namespace App\Support;
 
 use App\Services\Tmdb;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
 
 class SocialMeta
 {
     /**
-     * Publish Open Graph / Twitter card data for a movie or TV title.
+     * User-Agents used by WhatsApp, Facebook, X, Telegram, Slack, LinkedIn, Discord, iMessage.
+     */
+    private const CRAWLER_PATTERN = '/WhatsApp|facebookexternalhit|Facebot|Twitterbot|TelegramBot|Slackbot|LinkedInBot|Discordbot|SkypeUriPreview|Iframely|Embedly|Pinterest|vkShare|Googlebot|bingbot|Applebot/i';
+
+    public static function isSocialCrawler(?Request $request = null): bool
+    {
+        $request ??= request();
+        $agent = (string) $request->userAgent();
+
+        return $agent !== '' && preg_match(self::CRAWLER_PATTERN, $agent) === 1;
+    }
+
+    /**
+     * Build Open Graph / Twitter card fields for a movie or TV title.
      *
-     * WhatsApp and other crawlers need absolute HTTPS images that are not
-     * multi‑megabyte originals — prefer w1280 backdrops (≈16:9) under ~600KB.
+     * WhatsApp needs absolute HTTPS images that are not multi‑megabyte
+     * originals — prefer w1280 backdrops (≈16:9) under ~600KB.
      *
      * @param  array<string, mixed>  $media
+     * @return array{
+     *     title: string,
+     *     ogTitle: string,
+     *     ogDescription: string,
+     *     ogImage: ?string,
+     *     ogImageAlt: string,
+     *     ogUrl: string,
+     *     ogType: string
+     * }
      */
-    public static function forMedia(array $media, string $mediaType, ?string $canonicalUrl = null): void
+    public static function payload(array $media, string $mediaType, ?string $canonicalUrl = null): array
     {
         $tmdb = app(Tmdb::class);
 
@@ -38,7 +61,7 @@ class SocialMeta
 
         $isTv = $mediaType === 'tv';
 
-        View::share([
+        return [
             'title' => $displayTitle,
             'ogTitle' => $displayTitle,
             'ogDescription' => $description,
@@ -46,7 +69,17 @@ class SocialMeta
             'ogImageAlt' => $displayTitle,
             'ogUrl' => $canonicalUrl ?? url()->current(),
             'ogType' => $isTv ? 'video.tv_show' : 'video.movie',
-        ]);
+        ];
+    }
+
+    /**
+     * Publish Open Graph / Twitter card data into the shared view bag.
+     *
+     * @param  array<string, mixed>  $media
+     */
+    public static function forMedia(array $media, string $mediaType, ?string $canonicalUrl = null): void
+    {
+        View::share(self::payload($media, $mediaType, $canonicalUrl));
     }
 
     /**

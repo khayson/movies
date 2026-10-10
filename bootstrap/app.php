@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureAdultVerified;
+use App\Http\Middleware\ServeSocialCrawlerPreview;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -14,6 +15,10 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->trustProxies(at: '*');
+
+        $middleware->web(prepend: [
+            ServeSocialCrawlerPreview::class,
+        ]);
 
         $middleware->alias([
             'adult.verified' => EnsureAdultVerified::class,
