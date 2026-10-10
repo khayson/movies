@@ -36,7 +36,8 @@ test('coming soon page is public and shows upcoming titles', function () {
         ->assertSee('Premieres', false)
         ->assertSee('All coming soon', false)
         ->assertSee('property="og:title"', false)
-        ->assertSee('Coming Soon —', false);
+        ->assertSee('Coming Soon —', false)
+        ->assertSee('bottom-full', false);
 });
 
 test('coming soon tv tab loads discover results', function () {

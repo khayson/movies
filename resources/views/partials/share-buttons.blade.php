@@ -5,6 +5,10 @@
     $shareImage = $shareImage ?? null;
     $isUpcoming = (bool) ($isUpcoming ?? false);
     $shareReleaseDate = $shareReleaseDate ?? null;
+    $menuPlacement = ($menuPlacement ?? 'down') === 'up' ? 'up' : 'down';
+    $menuPositionClass = $menuPlacement === 'up'
+        ? 'bottom-full mb-2'
+        : 'top-full mt-2';
     $encodedText = rawurlencode($shareText);
     $encodedUrl = rawurlencode($shareUrl);
     $whatsAppBody = rawurlencode($shareText."\n".$shareUrl);
@@ -58,7 +62,7 @@
             }
         }
     }"
-    class="relative inline-block"
+    class="relative z-40 inline-block"
 >
     <button
         type="button"
@@ -79,7 +83,7 @@
         x-transition:leave-end="opacity-0 scale-95"
         @click.outside="showShare = false"
         x-cloak
-        class="absolute right-0 top-full z-30 mt-2 w-64 overflow-hidden rounded-xl border border-white/[0.08] bg-zinc-900 shadow-xl"
+        class="absolute right-0 {{ $menuPositionClass }} z-50 w-64 overflow-hidden rounded-xl border border-white/[0.08] bg-zinc-900 shadow-xl"
     >
         @if($shareImage)
             <div class="relative aspect-[16/9] overflow-hidden bg-zinc-950">

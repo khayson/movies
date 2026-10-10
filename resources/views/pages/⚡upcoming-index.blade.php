@@ -88,21 +88,23 @@ class extends Component
             : null;
     @endphp
 
-    {{-- Featured hero --}}
-    <div class="hero-bleed relative min-h-[420px] overflow-hidden lg:min-h-[520px]">
-        @if(is_array($featured) && ! empty($featured['backdrop_path']))
-            <img
-                src="{{ app(\App\Services\Tmdb::class)->backdropUrl($featured['backdrop_path'], 'w1280') }}"
-                alt="{{ $featuredTitle }}"
-                class="absolute inset-0 size-full object-cover"
-            >
-        @else
-            <div class="absolute inset-0 bg-gradient-to-br from-amber-950 via-zinc-950 to-zinc-950"></div>
-        @endif
-        <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/70 to-zinc-950/30"></div>
-        <div class="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-zinc-950/40 to-transparent"></div>
+    {{-- Featured hero: keep overflow on the backdrop only so share menus are not clipped --}}
+    <div class="hero-bleed relative z-20 min-h-[420px] lg:min-h-[520px]">
+        <div class="absolute inset-0 overflow-hidden">
+            @if(is_array($featured) && ! empty($featured['backdrop_path']))
+                <img
+                    src="{{ app(\App\Services\Tmdb::class)->backdropUrl($featured['backdrop_path'], 'w1280') }}"
+                    alt="{{ $featuredTitle }}"
+                    class="absolute inset-0 size-full object-cover"
+                >
+            @else
+                <div class="absolute inset-0 bg-gradient-to-br from-amber-950 via-zinc-950 to-zinc-950"></div>
+            @endif
+            <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/70 to-zinc-950/30"></div>
+            <div class="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-zinc-950/40 to-transparent"></div>
+        </div>
 
-        <div class="relative mx-auto flex min-h-[420px] max-w-7xl flex-col justify-end px-4 pb-10 pt-24 sm:px-6 lg:min-h-[520px] lg:px-8 lg:pb-14">
+        <div class="relative z-10 mx-auto flex min-h-[420px] max-w-7xl flex-col justify-end px-4 pb-10 pt-24 sm:px-6 lg:min-h-[520px] lg:px-8 lg:pb-14">
             <div class="mb-3 flex flex-wrap items-center gap-2">
                 <span class="rounded-md bg-amber-500 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-zinc-950">Coming soon</span>
                 @if($featuredDate)
@@ -123,7 +125,7 @@ class extends Component
                 @endif
             </p>
 
-            <div class="mt-6 flex flex-wrap items-center gap-2.5">
+            <div class="relative z-30 mt-6 flex flex-wrap items-center gap-2.5">
                 @if($featuredHref)
                     <a href="{{ $featuredHref }}"
                        class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-600/25 transition hover:from-amber-500 hover:to-amber-600"
@@ -138,6 +140,7 @@ class extends Component
                     'shareImage' => is_array($featured) ? \App\Support\SocialMeta::shareImage($featured) : null,
                     'isUpcoming' => true,
                     'shareReleaseDate' => $featuredDate ? \Carbon\Carbon::parse($featuredDate)->format('M j, Y') : null,
+                    'menuPlacement' => 'up',
                 ])
             </div>
         </div>
