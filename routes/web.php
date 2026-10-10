@@ -3,6 +3,7 @@
 use App\Http\Controllers\Api\AffiliateClickController;
 use App\Http\Controllers\Api\MediaCardController;
 use App\Http\Controllers\Api\SearchController;
+use App\Http\Controllers\SharePosterController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
@@ -48,6 +49,10 @@ Route::post('/api/media/{type}/{id}/favorite', [MediaCardController::class, 'tog
 Route::post('/api/affiliate-click', [AffiliateClickController::class, 'store'])
     ->middleware('throttle:30,1')
     ->name('affiliate.click');
+
+Route::get('/share/poster', SharePosterController::class)
+    ->middleware('throttle:60,1')
+    ->name('share.poster');
 
 Route::view('/terms', 'pages.terms')->name('terms');
 Route::view('/privacy', 'pages.privacy')->name('privacy');
