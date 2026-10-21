@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\User;
 use App\Models\UserNotification;
+use App\Services\PersonalizedRows;
 use App\Services\Tmdb;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
@@ -149,33 +150,12 @@ class GenerateNotifications extends Command
             return 0;
         }
 
-        // Collect genres from the user's watched content via TMDB details
-        $genreCounts = [];
         $watchedTmdbIds = $recentWatches->pluck('tmdb_id')->unique()->all();
+        $topGenreId = app(PersonalizedRows::class)->favoriteGenres($recentWatches, 1)[0]['id'] ?? null;
 
-        foreach ($recentWatches->take(5) as $watch) {
-            try {
-                $details = $tmdb->details($watch->media_type, $watch->tmdb_id);
-                $genres = $details['genres'] ?? [];
-
-                foreach ($genres as $genre) {
-                    $genreId = $genre['id'] ?? null;
-                    if ($genreId) {
-                        $genreCounts[$genreId] = ($genreCounts[$genreId] ?? 0) + 1;
-                    }
-                }
-            } catch (\Throwable) {
-                continue;
-            }
-        }
-
-        if (empty($genreCounts)) {
+        if ($topGenreId === null) {
             return 0;
         }
-
-        // Sort by most-watched genre, pick top genre
-        arsort($genreCounts);
-        $topGenreId = array_key_first($genreCounts);
 
         // Discover movies in that genre the user hasn't watched
         $discovered = $tmdb->discoverByGenre('movie', $topGenreId)['results'] ?? [];

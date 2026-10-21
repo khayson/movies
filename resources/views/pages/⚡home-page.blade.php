@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\AnimeDb;
+use App\Services\PersonalizedRows;
 use App\Services\RottenTomatoes;
 use App\Services\Tmdb;
 use Livewire\Attributes\Layout;
@@ -12,11 +13,12 @@ new
 #[Title('StreamVault — Free Movie & TV Streaming')]
 class extends Component
 {
-    public function with(Tmdb $tmdb, RottenTomatoes $rottenTomatoes, AnimeDb $animeDb): array
+    public function with(Tmdb $tmdb, RottenTomatoes $rottenTomatoes, AnimeDb $animeDb, PersonalizedRows $personalizedRows): array
     {
         $continueWatching = auth()->check()
             ? auth()->user()->watchHistory()->visible()->limit(10)->get()
             : collect();
+        $personalRows = auth()->check() ? $personalizedRows->forUser(auth()->user()) : [];
 
         $trending = $tmdb->trending('all', 'week')['results'] ?? [];
         $trendingDay = $tmdb->trending('all', 'day')['results'] ?? [];
@@ -143,6 +145,7 @@ class extends Component
             'topTenMovies' => $topTenMovies,
             'topTenShows' => $topTenShows,
             'continueWatching' => $continueWatching,
+            'personalRows' => $personalRows,
             'genreMap' => $genreMap,
             'movieGenres' => $movieGenres,
             'tvGenres' => $tvGenres,
@@ -487,6 +490,13 @@ class extends Component
                 </div>
             </div>
         @endif
+
+        {{-- Personalized rows --}}
+        @foreach($personalRows as $row)
+            <div class="reveal mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" wire:key="personal-row-{{ $loop->index }}">
+                @include('partials.media-row', ['title' => $row['title'], 'items' => $row['items'], 'style' => 'scroll'])
+            </div>
+        @endforeach
 
         {{-- Top 10 --}}
         @include('partials.top-ten-row', ['title' => 'Top 10 Movies Today', 'items' => $topTenMovies, 'type' => 'movie'])
