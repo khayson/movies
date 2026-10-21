@@ -1,7 +1,6 @@
 <?php
 
 use App\Services\AdultContentProvider;
-use App\Services\SourceResolver;
 use App\Services\Tmdb;
 use App\Support\AdultSafety;
 use Livewire\Attributes\Layout;
@@ -22,17 +21,8 @@ class extends Component
 
     public int $page = 1;
 
+    #[Url(as: 'q')]
     public string $search = '';
-
-    public ?string $embedUrl = null;
-
-    public string $embedTitle = '';
-
-    public string $videoSrc = '';
-
-    public string $videoHls = '';
-
-    public string $playerType = 'iframe';
 
     public function setProvider(string $provider): void
     {
@@ -79,133 +69,6 @@ class extends Component
         session()->forget('auth.password_confirmed_at');
 
         return $this->redirectRoute('home', navigate: true);
-    }
-
-    public function openPlayer(string $embedUrl, string $title): void
-    {
-        $this->embedUrl = $embedUrl;
-        $this->embedTitle = $title;
-        $this->videoSrc = '';
-        $this->videoHls = '';
-        $this->playerType = 'iframe';
-    }
-
-    public function openXnxxPlayer(string $videoLink, string $title): void
-    {
-        $adultProvider = app(AdultContentProvider::class);
-        $stream = $adultProvider->xnxxDownload($videoLink);
-
-        $this->embedTitle = $stream['title'] ?? $title;
-
-        if ($stream && ! empty($stream['hls'])) {
-            $this->videoHls = $stream['hls'];
-            $this->videoSrc = $stream['video_high'] ?: ($stream['video_low'] ?: '');
-            $this->embedUrl = null;
-            $this->playerType = 'native';
-        } elseif ($stream && ! empty($stream['video_high'])) {
-            $this->videoSrc = $stream['video_high'];
-            $this->videoHls = '';
-            $this->embedUrl = null;
-            $this->playerType = 'native';
-        } else {
-            $this->embedUrl = $videoLink;
-            $this->videoSrc = '';
-            $this->videoHls = '';
-            $this->playerType = 'iframe';
-        }
-    }
-
-    public function openPornhubPlayer(string $videoLink, string $title): void
-    {
-        $adultProvider = app(AdultContentProvider::class);
-        $stream = $adultProvider->pornhubDownload($videoLink);
-
-        $this->embedTitle = $stream['title'] ?? $title;
-
-        if ($stream && ! empty($stream['hls'])) {
-            $this->videoHls = $stream['hls'];
-            $this->videoSrc = $stream['video_high'] ?: ($stream['video_low'] ?: '');
-            $this->embedUrl = null;
-            $this->playerType = 'native';
-        } elseif ($stream && ! empty($stream['video_high'])) {
-            $this->videoSrc = $stream['video_high'];
-            $this->videoHls = '';
-            $this->embedUrl = null;
-            $this->playerType = 'native';
-        } else {
-            $this->embedUrl = $videoLink;
-            $this->videoSrc = '';
-            $this->videoHls = '';
-            $this->playerType = 'iframe';
-        }
-    }
-
-    public function openEpornerPlayer(string $videoId, string $title): void
-    {
-        $adultProvider = app(AdultContentProvider::class);
-        $stream = $adultProvider->epornerDownload($videoId);
-
-        $this->embedTitle = $stream['title'] ?? $title;
-
-        if ($stream && (! empty($stream['hls']) || ! empty($stream['video_high']))) {
-            $this->videoHls = $stream['hls'] ?? '';
-            $this->videoSrc = $stream['video_high'] ?: ($stream['video_low'] ?: '');
-            $this->embedUrl = null;
-            $this->playerType = 'native';
-        } else {
-            $this->embedUrl = "https://www.eporner.com/embed/{$videoId}/";
-            $this->videoSrc = '';
-            $this->videoHls = '';
-            $this->playerType = 'iframe';
-        }
-    }
-
-    public function openXvideosPlayer(string $videoLink, string $title): void
-    {
-        $adultProvider = app(AdultContentProvider::class);
-        $stream = $adultProvider->xvideosDownload($videoLink);
-
-        $this->embedTitle = $stream['title'] ?? $title;
-
-        if ($stream && ! empty($stream['hls'])) {
-            $this->videoHls = $stream['hls'];
-            $this->videoSrc = $stream['video_high'] ?: ($stream['video_low'] ?: '');
-            $this->embedUrl = null;
-            $this->playerType = 'native';
-        } elseif ($stream && ! empty($stream['video_high'])) {
-            $this->videoSrc = $stream['video_high'];
-            $this->videoHls = '';
-            $this->embedUrl = null;
-            $this->playerType = 'native';
-        } else {
-            $this->embedUrl = $videoLink;
-            $this->videoSrc = '';
-            $this->videoHls = '';
-            $this->playerType = 'iframe';
-        }
-    }
-
-    public function openTmdbPlayer(int $tmdbId, string $title): void
-    {
-        $resolver = app(SourceResolver::class);
-        $resolved = $resolver->resolveAdult($tmdbId);
-        $sources = $resolved['embed'];
-        if (count($sources) > 0) {
-            $this->embedUrl = $sources[0]['url'];
-            $this->embedTitle = $title;
-            $this->videoSrc = '';
-            $this->videoHls = '';
-            $this->playerType = 'iframe';
-        }
-    }
-
-    public function closePlayer(): void
-    {
-        $this->embedUrl = null;
-        $this->embedTitle = '';
-        $this->videoSrc = '';
-        $this->videoHls = '';
-        $this->playerType = 'iframe';
     }
 
     /**
@@ -436,7 +299,6 @@ class extends Component
 
 <div
     x-data
-    x-on:keydown.escape.window="$wire.closePlayer()"
     x-on:keydown.shift.escape.window="$wire.quickExit()"
 >
     <div class="relative overflow-hidden border-b border-white/[0.06]">
@@ -449,7 +311,7 @@ class extends Component
                         <span class="bg-gradient-to-r from-red-400 to-amber-400 bg-clip-text text-transparent">{{ __('18+') }}</span>
                     </h1>
                     <p class="mt-2 max-w-xl text-sm text-zinc-400">
-                        {{ __('Age-verified catalog. Movies and series play in the StreamVault player. Tube sources stay in a private overlay.') }}
+                        {{ __('Age-verified catalog. Every title opens in the private StreamVault player with its other sources.') }}
                     </p>
                 </div>
                 <button
@@ -526,48 +388,6 @@ class extends Component
             </div>
         </div>
 
-        {{-- Player modal --}}
-        @if($embedUrl || $videoSrc || $videoHls)
-            <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm" wire:click.self="closePlayer">
-                <div class="w-full max-w-5xl rounded-xl border border-zinc-700 bg-zinc-900 shadow-2xl">
-                    <div class="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
-                        <h3 class="truncate pr-4 text-sm font-semibold">{{ $embedTitle }}</h3>
-                        <button wire:click="closePlayer" class="shrink-0 rounded-lg p-1 text-zinc-400 transition hover:bg-zinc-800 hover:text-white">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
-                        </button>
-                    </div>
-                    <div class="aspect-video w-full bg-black">
-                        @if($playerType === 'native' && ($videoHls || $videoSrc))
-                            <video
-                                controls
-                                autoplay
-                                class="size-full"
-                                poster=""
-                                @if($videoSrc) src="{{ $videoSrc }}" @endif
-                            >
-                                @if($videoHls)
-                                    <source src="{{ $videoHls }}" type="application/x-mpegURL" />
-                                @endif
-                                @if($videoSrc)
-                                    <source src="{{ $videoSrc }}" type="video/mp4" />
-                                @endif
-                                Your browser does not support the video tag.
-                            </video>
-                        @elseif($embedUrl)
-                            <iframe
-                                src="{{ $embedUrl }}"
-                                class="size-full"
-                                allowfullscreen
-                                allow="autoplay; fullscreen"
-                                referrerpolicy="origin"
-                                sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
-                            ></iframe>
-                        @endif
-                    </div>
-                </div>
-            </div>
-        @endif
-
         @php
             $catalogLoading = 'setProvider,setSort,searchVideos,nextPage,previousPage';
         @endphp
@@ -601,26 +421,14 @@ class extends Component
             <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 @foreach($videos as $video)
                     @php
-                        $watchUrl = $isTmdbCatalog && ! empty($video['tmdb_id'])
-                            ? route('watch', ['type' => $video['media_type'] ?? ($provider === 'tmdb_tv' ? 'tv' : 'movie'), 'tmdbId' => $video['tmdb_id']])
-                            : null;
+                        $tubeReference = $isTmdbCatalog ? '' : \App\Services\AdultContentProvider::watchReference($provider, $video);
+                        $watchUrl = match (true) {
+                            $isTmdbCatalog && ! empty($video['tmdb_id']) => route('watch', ['type' => $video['media_type'] ?? ($provider === 'tmdb_tv' ? 'tv' : 'movie'), 'tmdbId' => $video['tmdb_id']]),
+                            $tubeReference !== '' => route('adult.watch', ['provider' => $provider, 'key' => \App\Services\AdultContentProvider::encodeWatchKey($tubeReference)]),
+                            default => null,
+                        };
                     @endphp
-                    <div
-                        @if($watchUrl)
-                            {{-- TMDB titles open the full player --}}
-                        @elseif($provider === 'xnxx' && !empty($video['video_link']))
-                            wire:click="openXnxxPlayer('{{ $video['video_link'] }}', '{{ addslashes($video['title']) }}')"
-                        @elseif($provider === 'pornhub' && !empty($video['video_link']))
-                            wire:click="openPornhubPlayer('{{ $video['video_link'] }}', '{{ addslashes($video['title']) }}')"
-                        @elseif($provider === 'xvideos' && !empty($video['video_link']))
-                            wire:click="openXvideosPlayer('{{ $video['video_link'] }}', '{{ addslashes($video['title']) }}')"
-                        @elseif($provider === 'eporner' && !empty($video['id']))
-                            wire:click="openEpornerPlayer('{{ $video['id'] }}', '{{ addslashes($video['title']) }}')"
-                        @elseif(!empty($video['embed_url']))
-                            wire:click="openPlayer('{{ $video['embed_url'] }}', '{{ addslashes($video['title']) }}')"
-                        @endif
-                        class="group {{ $watchUrl ? '' : 'cursor-pointer' }}"
-                    >
+                    <div wire:key="adult-video-{{ $loop->index }}" class="group">
                         @if($watchUrl)
                             <a href="{{ $watchUrl }}" wire:navigate class="block">
                         @endif

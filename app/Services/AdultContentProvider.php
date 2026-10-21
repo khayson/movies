@@ -13,6 +13,307 @@ class AdultContentProvider
     private const BROWSE_FALLBACK_QUERY = 'amateur';
 
     /**
+     * Tube providers that have a dedicated watch page, keyed by slug.
+     *
+     * @var array<string, string>
+     */
+    public const TUBE_PROVIDERS = [
+        'xnxx' => 'XNXX',
+        'pornhub' => 'PornHub',
+        'xvideos' => 'XVideos',
+        'eporner' => 'Eporner',
+        'redtube' => 'RedTube',
+    ];
+
+    /**
+     * Sites whose video page links are passed to their download API.
+     *
+     * @var array<string, string>
+     */
+    private const LINKED_VIDEO_DOMAINS = [
+        'xnxx' => 'xnxx.com',
+        'pornhub' => 'pornhub.com',
+        'xvideos' => 'xvideos.com',
+    ];
+
+    /**
+     * The value that identifies a catalog video on its provider: the page link for
+     * linked providers, the numeric/alphanumeric id for Eporner and RedTube.
+     *
+     * @param  array<string, mixed>  $video
+     */
+    public static function watchReference(string $provider, array $video): string
+    {
+        $value = isset(self::LINKED_VIDEO_DOMAINS[$provider])
+            ? ($video['video_link'] ?? '')
+            : ($video['id'] ?? '');
+
+        return is_scalar($value) ? (string) $value : '';
+    }
+
+    /**
+     * URL-safe route key for a video reference.
+     */
+    public static function encodeWatchKey(string $reference): string
+    {
+        return rtrim(strtr(base64_encode($reference), '+/', '-_'), '=');
+    }
+
+    public static function decodeWatchKey(string $key): ?string
+    {
+        if ($key === '' || strlen($key) > 2048 || preg_match('/^[A-Za-z0-9_-]+$/', $key) !== 1) {
+            return null;
+        }
+
+        $padded = str_pad(strtr($key, '-_', '+/'), (int) (ceil(strlen($key) / 4) * 4), '=');
+        $decoded = base64_decode($padded, true);
+
+        return is_string($decoded) && $decoded !== '' ? $decoded : null;
+    }
+
+    /**
+     * Resolve one tube video into display metadata and every playable source.
+     *
+     * Returns null when the provider is unknown, the reference does not belong to
+     * that provider, or the title is blocked.
+     *
+     * @return array{provider: string, title: string, thumbnail: string, duration: string, views: string, rating: string, sources: list<array{label: string, type: string, url: string}>}|null
+     */
+    public function video(string $provider, string $reference): ?array
+    {
+        $video = match ($provider) {
+            'xnxx', 'pornhub', 'xvideos' => $this->linkedVideo($provider, $reference),
+            'eporner' => $this->epornerVideo($reference),
+            'redtube' => $this->redtubeVideo($reference),
+            default => null,
+        };
+
+        if ($video === null || AdultSafety::rejectBlockedTitles([$video]) === []) {
+            return null;
+        }
+
+        return $video;
+    }
+
+    /**
+     * Other videos from the same provider's default feed.
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function related(string $provider, string $excludeReference, int $limit = 12): array
+    {
+        $catalog = match ($provider) {
+            'xnxx' => $this->xnxx(),
+            'pornhub' => $this->pornhub(),
+            'xvideos' => $this->xvideos(),
+            'eporner' => $this->eporner(),
+            'redtube' => $this->redtube(),
+            default => $this->emptyCatalog(),
+        };
+
+        return collect($catalog['videos'])
+            ->filter(function (array $video) use ($provider, $excludeReference): bool {
+                $reference = self::watchReference($provider, $video);
+
+                return $reference !== '' && $reference !== $excludeReference;
+            })
+            ->take($limit)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array{provider: string, title: string, thumbnail: string, duration: string, views: string, rating: string, sources: list<array{label: string, type: string, url: string}>}|null
+     */
+    private function linkedVideo(string $provider, string $link): ?array
+    {
+        $domain = self::LINKED_VIDEO_DOMAINS[$provider];
+        $scheme = strtolower((string) parse_url($link, PHP_URL_SCHEME));
+        $host = strtolower((string) parse_url($link, PHP_URL_HOST));
+
+        if (! in_array($scheme, ['http', 'https'], true) || ($host !== $domain && ! str_ends_with($host, '.'.$domain))) {
+            return null;
+        }
+
+        $stream = match ($provider) {
+            'xnxx' => $this->xnxxDownload($link),
+            'pornhub' => $this->pornhubDownload($link),
+            default => $this->xvideosDownload($link),
+        };
+
+        $title = (string) ($stream['title'] ?? '');
+
+        return $this->videoDetails(
+            provider: $provider,
+            title: $title !== '' && $title !== 'Untitled' ? $title : $this->titleFromLink($link),
+            thumbnail: (string) ($stream['thumbnail'] ?? ''),
+            stream: $stream,
+            embedUrl: $this->linkedEmbedUrl($provider, $link),
+        );
+    }
+
+    /**
+     * @return array{provider: string, title: string, thumbnail: string, duration: string, views: string, rating: string, sources: list<array{label: string, type: string, url: string}>}|null
+     */
+    private function epornerVideo(string $id): ?array
+    {
+        if (preg_match('/^[A-Za-z0-9]+$/', $id) !== 1) {
+            return null;
+        }
+
+        $details = $this->cachedVideoDetails("adult.eporner.video.{$id}", fn (): array => $this->mapEpornerVideos([
+            Http::timeout(10)->connectTimeout(5)->acceptJson()
+                ->get('https://www.eporner.com/api/v2/video/id/', ['id' => $id, 'thumbsize' => 'big', 'format' => 'json'])
+                ->json(),
+        ]));
+
+        return $this->videoDetails(
+            provider: 'eporner',
+            title: (string) ($details['title'] ?? 'Eporner video'),
+            thumbnail: (string) ($details['thumbnail'] ?? ''),
+            stream: $this->epornerDownload($id),
+            embedUrl: "https://www.eporner.com/embed/{$id}/",
+            duration: (string) ($details['duration'] ?? ''),
+            views: (string) ($details['views'] ?? ''),
+            rating: (string) ($details['rating'] ?? ''),
+        );
+    }
+
+    /**
+     * @return array{provider: string, title: string, thumbnail: string, duration: string, views: string, rating: string, sources: list<array{label: string, type: string, url: string}>}|null
+     */
+    private function redtubeVideo(string $id): ?array
+    {
+        if (preg_match('/^\d+$/', $id) !== 1) {
+            return null;
+        }
+
+        $details = $this->cachedVideoDetails("adult.redtube.video.{$id}", fn (): array => $this->mapRedtubeVideos([
+            Http::timeout(10)->connectTimeout(5)->acceptJson()
+                ->get('https://api.redtube.com/', [
+                    'data' => 'redtube.Videos.getVideoById',
+                    'video_id' => $id,
+                    'output' => 'json',
+                    'thumbsize' => 'big',
+                ])
+                ->json(),
+        ]));
+
+        return $this->videoDetails(
+            provider: 'redtube',
+            title: (string) ($details['title'] ?? 'RedTube video'),
+            thumbnail: (string) ($details['thumbnail'] ?? ''),
+            stream: null,
+            embedUrl: "https://embed.redtube.com/?id={$id}",
+            duration: (string) ($details['duration'] ?? ''),
+            views: (string) ($details['views'] ?? ''),
+            rating: (string) ($details['rating'] ?? ''),
+        );
+    }
+
+    /**
+     * Fetch a single video's catalog row, caching successful lookups for an hour.
+     *
+     * @param  Closure(): array<int, array<string, mixed>>  $fetch
+     * @return array<string, mixed>
+     */
+    private function cachedVideoDetails(string $cacheKey, Closure $fetch): array
+    {
+        $cached = Cache::get($cacheKey);
+
+        if (is_array($cached) && $cached !== []) {
+            return $cached;
+        }
+
+        try {
+            $row = $fetch()[0] ?? [];
+        } catch (\Throwable) {
+            return [];
+        }
+
+        if (($row['title'] ?? 'Untitled') === 'Untitled') {
+            return [];
+        }
+
+        Cache::put($cacheKey, $row, now()->addHour());
+
+        return $row;
+    }
+
+    /**
+     * @param  array{title: string, video_low: string, video_high: string, hls: string, thumbnail: string}|null  $stream
+     * @return array{provider: string, title: string, thumbnail: string, duration: string, views: string, rating: string, sources: list<array{label: string, type: string, url: string}>}
+     */
+    private function videoDetails(
+        string $provider,
+        string $title,
+        string $thumbnail,
+        ?array $stream,
+        ?string $embedUrl,
+        string $duration = '',
+        string $views = '',
+        string $rating = '',
+    ): array {
+        $sources = [];
+
+        if (! empty($stream['hls'])) {
+            $sources[] = ['label' => 'Auto quality', 'type' => 'hls', 'url' => $stream['hls']];
+        }
+
+        if (! empty($stream['video_high'])) {
+            $sources[] = ['label' => 'HD', 'type' => 'mp4', 'url' => $stream['video_high']];
+        }
+
+        if (! empty($stream['video_low']) && $stream['video_low'] !== $stream['video_high']) {
+            $sources[] = ['label' => 'SD', 'type' => 'mp4', 'url' => $stream['video_low']];
+        }
+
+        if ($embedUrl !== null) {
+            $sources[] = ['label' => self::TUBE_PROVIDERS[$provider].' player', 'type' => 'embed', 'url' => $embedUrl];
+        }
+
+        return [
+            'provider' => $provider,
+            'title' => $title,
+            'thumbnail' => $thumbnail !== '' ? $thumbnail : (string) ($stream['thumbnail'] ?? ''),
+            'duration' => $duration,
+            'views' => $views,
+            'rating' => $rating !== '' && (float) $rating > 0 ? $rating : '',
+            'sources' => $sources,
+        ];
+    }
+
+    private function linkedEmbedUrl(string $provider, string $link): ?string
+    {
+        $path = (string) parse_url($link, PHP_URL_PATH);
+
+        if ($provider === 'pornhub') {
+            parse_str((string) parse_url($link, PHP_URL_QUERY), $query);
+            $viewKey = $query['viewkey'] ?? null;
+
+            return is_string($viewKey) && preg_match('/^[A-Za-z0-9]+$/', $viewKey) === 1
+                ? "https://www.pornhub.com/embed/{$viewKey}"
+                : null;
+        }
+
+        $pattern = $provider === 'xnxx' ? '~/video-([A-Za-z0-9]+)~' : '~/video\.?([A-Za-z0-9]+)~';
+
+        if (preg_match($pattern, $path, $matches) !== 1) {
+            return null;
+        }
+
+        return "https://www.{$provider}.com/embedframe/{$matches[1]}";
+    }
+
+    private function titleFromLink(string $link): string
+    {
+        $slug = basename((string) parse_url($link, PHP_URL_PATH));
+        $title = trim((string) preg_replace('/[\s_-]+/', ' ', $slug));
+
+        return str_contains($title, ' ') ? ucfirst($title) : 'Untitled video';
+    }
+
+    /**
      * @return array{videos: array<int, array<string, mixed>>, total_pages: int}
      */
     public function xnxx(string $query = '', int $page = 1, string $mode = 'trending', string $category = ''): array

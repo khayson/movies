@@ -200,3 +200,64 @@ test('redtube falls back to newest when the default feed is empty', function () 
     expect($catalog['videos'])->toHaveCount(1)
         ->and($catalog['videos'][0]['provider'])->toBe('RedTube');
 });
+
+test('watch keys round-trip video links', function () {
+    $link = 'https://www.xnxx.com/video-abc123/studio_cut?x=1&y=2';
+    $key = AdultContentProvider::encodeWatchKey($link);
+
+    expect($key)->toMatch('/^[A-Za-z0-9_-]+$/')
+        ->and(AdultContentProvider::decodeWatchKey($key))->toBe($link)
+        ->and(AdultContentProvider::decodeWatchKey('not base64!'))->toBeNull();
+});
+
+test('linked videos from another site are rejected without calling the download api', function () {
+    Http::fake();
+
+    expect(app(AdultContentProvider::class)->video('xnxx', 'https://evil.example.com/video-abc123/x'))->toBeNull()
+        ->and(app(AdultContentProvider::class)->video('xnxx', 'https://xnxx.com.evil.example/video-abc123/x'))->toBeNull()
+        ->and(app(AdultContentProvider::class)->video('eporner', '../etc'))->toBeNull();
+
+    Http::assertNothingSent();
+});
+
+test('xnxx videos list every stream as a source with the embed player last', function () {
+    Http::fake([
+        'porn-xnxx-api.p.rapidapi.com/download' => Http::response([
+            'title' => 'Studio Cut',
+            'video_low' => 'https://cdn.example.com/low.mp4',
+            'video_high' => 'https://cdn.example.com/high.mp4',
+            'hls' => 'https://cdn.example.com/master.m3u8',
+            'thumbnail' => 'https://cdn.example.com/thumb.jpg',
+        ]),
+    ]);
+
+    $video = app(AdultContentProvider::class)->video('xnxx', 'https://www.xnxx.com/video-abc123/studio_cut');
+
+    expect($video['title'])->toBe('Studio Cut')
+        ->and($video['thumbnail'])->toBe('https://cdn.example.com/thumb.jpg')
+        ->and(array_column($video['sources'], 'type'))->toBe(['hls', 'mp4', 'mp4', 'embed'])
+        ->and($video['sources'][3]['url'])->toBe('https://www.xnxx.com/embedframe/abc123');
+});
+
+test('eporner videos fall back to the embed player when no stream is available', function () {
+    config(['sources.rapidapi_key' => null]);
+
+    Http::fake([
+        'www.eporner.com/api/v2/video/id/*' => Http::response([
+            'id' => 'AbC123',
+            'title' => 'Weekly Pick',
+            'length_min' => '12:00',
+            'views' => 2500,
+            'rate' => '4.5',
+            'default_thumb' => ['src' => 'https://cdn.example.com/e.jpg'],
+        ]),
+    ]);
+
+    $video = app(AdultContentProvider::class)->video('eporner', 'AbC123');
+
+    expect($video['title'])->toBe('Weekly Pick')
+        ->and($video['views'])->toBe('2.5K')
+        ->and($video['sources'])->toBe([
+            ['label' => 'Eporner player', 'type' => 'embed', 'url' => 'https://www.eporner.com/embed/AbC123/'],
+        ]);
+});

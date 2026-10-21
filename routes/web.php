@@ -13,6 +13,8 @@ Route::livewire('/movies/{tmdbId}', 'pages::movie-detail')->name('movies.detail'
 Route::livewire('/tv', 'pages::tv-index')->name('tv.index');
 Route::livewire('/tv/{tmdbId}', 'pages::tv-detail')->name('tv.detail');
 Route::livewire('/anime', 'pages::anime-index')->name('anime.index');
+Route::livewire('/nollywood', 'pages::film-industry')->name('nollywood')->defaults('industry', 'nollywood');
+Route::livewire('/ghallywood', 'pages::film-industry')->name('ghallywood')->defaults('industry', 'ghallywood');
 Route::livewire('/search', 'pages::search-page')->name('search');
 Route::livewire('/watch/{type}/{tmdbId}/{season?}/{episode?}', 'pages::watch-page')->name('watch');
 
@@ -96,6 +98,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
 Route::middleware(['auth', 'verified', 'adult.verified'])->group(function () {
     Route::livewire('/adult', 'pages::adult-browse')->name('adult.browse');
+    Route::livewire('/adult/watch/{provider}/{key}', 'pages::adult-watch')
+        ->name('adult.watch')
+        ->where(['provider' => 'xnxx|pornhub|xvideos|eporner|redtube', 'key' => '[A-Za-z0-9_-]+']);
 });
 
 require __DIR__.'/settings.php';

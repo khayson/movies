@@ -415,6 +415,20 @@ class Tmdb
     }
 
     /**
+     * Popular titles produced in a country (ISO 3166-1 code, e.g. "NG" for Nollywood).
+     *
+     * @return array<string, mixed>
+     */
+    public function discoverByOriginCountry(string $type, string $countryCode, int $page = 1): array
+    {
+        return $this->get("/discover/{$type}", [
+            'with_origin_country' => $countryCode,
+            'sort_by' => 'popularity.desc',
+            'page' => $page,
+        ]);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     public function images(string $type, int $id): array

@@ -54,6 +54,8 @@
                                 ['route' => 'movies.index', 'label' => 'Movies', 'match' => 'movies.*'],
                                 ['route' => 'tv.index', 'label' => 'TV Shows', 'match' => 'tv.*'],
                                 ['route' => 'anime.index', 'label' => 'Anime', 'match' => 'anime.*', 'accent' => 'text-fuchsia-400/90 hover:text-fuchsia-300'],
+                                ['route' => 'nollywood', 'label' => 'Nollywood', 'match' => 'nollywood'],
+                                ['route' => 'ghallywood', 'label' => 'Ghallywood', 'match' => 'ghallywood'],
                                 ['route' => 'coming-soon', 'label' => 'Coming Soon', 'match' => 'coming-soon'],
                                 ['route' => 'trending', 'label' => 'Trending', 'match' => 'trending'],
                                 ['route' => 'genres.index', 'label' => 'Genres', 'match' => 'genres.*'],
@@ -115,6 +117,8 @@
                         ['route' => 'movies.index', 'label' => 'Movies', 'match' => 'movies.*'],
                         ['route' => 'tv.index', 'label' => 'TV Shows', 'match' => 'tv.*'],
                         ['route' => 'anime.index', 'label' => 'Anime', 'match' => 'anime.*', 'accent' => 'text-fuchsia-400/90'],
+                        ['route' => 'nollywood', 'label' => 'Nollywood', 'match' => 'nollywood'],
+                        ['route' => 'ghallywood', 'label' => 'Ghallywood', 'match' => 'ghallywood'],
                         ['route' => 'coming-soon', 'label' => 'Coming Soon', 'match' => 'coming-soon'],
                         ['route' => 'trending', 'label' => 'Trending', 'match' => 'trending'],
                         ['route' => 'genres.index', 'label' => 'Genres', 'match' => 'genres.*'],
@@ -177,6 +181,8 @@
                                 <li><a href="{{ route('movies.index') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Movies</a></li>
                                 <li><a href="{{ route('tv.index') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>TV Shows</a></li>
                                 <li><a href="{{ route('anime.index') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Anime</a></li>
+                                <li><a href="{{ route('nollywood') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Nollywood</a></li>
+                                <li><a href="{{ route('ghallywood') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Ghallywood</a></li>
                                 <li><a href="{{ route('genres.index') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Genres</a></li>
                                 <li><a href="{{ route('trending') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Trending</a></li>
                                 <li><a href="{{ route('search') }}" class="text-sm text-zinc-500 transition-colors hover:text-white" wire:navigate>Search</a></li>
