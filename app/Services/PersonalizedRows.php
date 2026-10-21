@@ -37,7 +37,7 @@ class PersonalizedRows
 
         /** @var list<array{title: string, items: list<array<string, mixed>>}> */
         return Cache::remember($cacheKey, now()->addHours(6), function () use ($history): array {
-            $watched = $history->map(fn (WatchHistory $entry): string => $entry->media_type.':'.$entry->tmdb_id)->values()->all();
+            $watched = array_values($history->map(fn (WatchHistory $entry): string => $entry->media_type.':'.$entry->tmdb_id)->all());
             $rows = [];
 
             foreach ($history->unique(fn (WatchHistory $entry): string => $entry->media_type.':'.$entry->tmdb_id)->take(self::SOURCE_TITLES) as $entry) {
