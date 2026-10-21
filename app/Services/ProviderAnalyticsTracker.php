@@ -70,17 +70,19 @@ class ProviderAnalyticsTracker
                 ->where('date', '>=', now()->subDays(7)->toDateString())
                 ->selectRaw('provider, SUM(success_count) as wins, SUM(failure_count) as fails, AVG(avg_load_ms) as load_ms')
                 ->groupBy('provider')
+                ->toBase()
                 ->get();
 
             $scores = [];
             foreach ($analytics as $row) {
-                $total = $row->wins + $row->fails;
+                $wins = (int) $row->wins;
+                $total = $wins + (int) $row->fails;
                 if ($total < 5) {
                     continue;
                 }
 
-                $successRate = $row->wins / $total;
-                $loadPenalty = min(10, (int) ($row->load_ms / 1000));
+                $successRate = $wins / $total;
+                $loadPenalty = min(10, (int) ((float) $row->load_ms / 1000));
                 $scores[$row->provider] = (int) round($successRate * 15) - $loadPenalty;
             }
 
@@ -100,17 +102,19 @@ class ProviderAnalyticsTracker
                 ->where('date', '>=', now()->subDays(7)->toDateString())
                 ->selectRaw('provider, SUM(success_count) as wins, SUM(failure_count) as fails, SUM(buffer_count) as buffers')
                 ->groupBy('provider')
+                ->toBase()
                 ->get();
 
             $scores = [];
             foreach ($analytics as $row) {
-                $total = $row->wins + $row->fails;
+                $wins = (int) $row->wins;
+                $total = $wins + (int) $row->fails;
                 if ($total < 5) {
                     continue;
                 }
 
-                $successRate = $row->wins / $total;
-                $bufferRate = $total > 0 ? $row->buffers / $total : 0;
+                $successRate = $wins / $total;
+                $bufferRate = (int) $row->buffers / $total;
                 $scores[$row->provider] = (int) round($successRate * 10) - (int) round($bufferRate * 8);
             }
 
@@ -197,6 +201,7 @@ class ProviderAnalyticsTracker
             ->where('date', '>=', now()->subDays($days)->toDateString())
             ->selectRaw('provider, SUM(success_count) as wins, SUM(failure_count) as fails, SUM(buffer_count) as buffers')
             ->groupBy('provider')
+            ->toBase()
             ->get();
 
         $health = $this->healthMap($rows->pluck('provider')->all());

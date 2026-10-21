@@ -73,7 +73,7 @@ class WatchHistory extends Model
 
     public function formattedProgress(): string
     {
-        return gmdate($this->progressSeconds >= 3600 ? 'H:i:s' : 'i:s', $this->progress_seconds);
+        return gmdate($this->progress_seconds >= 3600 ? 'H:i:s' : 'i:s', $this->progress_seconds);
     }
 
     public function formattedDuration(): string

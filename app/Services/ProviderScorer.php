@@ -85,7 +85,7 @@ class ProviderScorer
                 continue;
             }
 
-            $provider = $source['provider'] ?? '';
+            $provider = $source['provider'];
 
             if ($excludeProvider !== null && $provider === $excludeProvider) {
                 continue;

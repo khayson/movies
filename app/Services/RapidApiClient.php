@@ -101,6 +101,9 @@ class RapidApiClient
         return $request;
     }
 
+    /**
+     * @param  array<string, mixed>  $query
+     */
     public function get(
         string $host,
         string $url,
@@ -138,6 +141,7 @@ class RapidApiClient
     }
 
     /**
+     * @param  array<string, mixed>  $query
      * @return array<string, mixed>|null
      */
     public function getJson(

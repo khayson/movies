@@ -28,13 +28,13 @@ class ProviderHealthProbe
             return null;
         }
 
-        $checkedAt = $results[$provider]['checked_at'] ?? 0;
+        $checkedAt = $results[$provider]['checked_at'];
 
         if ((time() - $checkedAt) > 3600) {
             return null;
         }
 
-        return (bool) ($results[$provider]['healthy'] ?? false);
+        return $results[$provider]['healthy'];
     }
 
     /**

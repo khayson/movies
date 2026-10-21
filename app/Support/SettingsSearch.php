@@ -2,6 +2,8 @@
 
 namespace App\Support;
 
+use Laravel\Fortify\Features;
+
 class SettingsSearch
 {
     /**
@@ -10,6 +12,19 @@ class SettingsSearch
      * @return list<array{id: string, label: string, description: string, group: string, route: string, anchor: string, keywords: list<string>}>
      */
     public static function catalog(): array
+    {
+        $disabled = array_keys(array_filter([
+            'security-2fa' => ! Features::canManageTwoFactorAuthentication(),
+            'security-passkeys' => ! Features::canManagePasskeys(),
+        ]));
+
+        return array_values(array_filter(self::destinations(), fn (array $item): bool => ! in_array($item['id'], $disabled, true)));
+    }
+
+    /**
+     * @return list<array{id: string, label: string, description: string, group: string, route: string, anchor: string, keywords: list<string>}>
+     */
+    private static function destinations(): array
     {
         return [
             [
@@ -268,7 +283,7 @@ class SettingsSearch
     }
 
     /**
-     * @param  array{label: string, description: string, group: string, keywords: list<string>}  $item
+     * @param  array{id: string, label: string, description: string, group: string, keywords: list<string>}  $item
      * @param  list<string>  $tokens
      */
     public static function score(array $item, string $query, array $tokens): float

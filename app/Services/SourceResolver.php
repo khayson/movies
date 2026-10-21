@@ -30,7 +30,7 @@ class SourceResolver
             $sources = [];
 
             foreach ($providers as $provider) {
-                if (($provider['driver'] ?? '') === 'cinesrc') {
+                if ($provider['driver'] === 'cinesrc') {
                     continue;
                 }
 
@@ -100,7 +100,7 @@ class SourceResolver
             $external = [];
 
             foreach ($providers as $provider) {
-                if (($provider['driver'] ?? '') === 'embed') {
+                if ($provider['driver'] === 'embed') {
                     $template = $provider['movie_url'] ?? '';
                     if ($template !== '') {
                         $url = str_replace('{id}', (string) $tmdbId, $template);
@@ -111,7 +111,7 @@ class SourceResolver
                             'provider' => $provider['name'] ?? 'Adult Embed',
                         ];
                     }
-                } elseif (($provider['driver'] ?? '') === 'external') {
+                } elseif ($provider['driver'] === 'external') {
                     $external[] = [
                         'name' => $provider['name'] ?? 'External',
                         'url' => $provider['url'] ?? '',
@@ -170,14 +170,14 @@ class SourceResolver
         if ($excluded !== []) {
             $sources = array_values(array_filter(
                 $sources,
-                fn (array $source): bool => ! in_array($source['provider'] ?? '', $excluded, true),
+                fn (array $source): bool => ! in_array($source['provider'], $excluded, true),
             ));
         }
 
         if (! UserPreferences::bool($prefs, 'show_trailer_in_servers', true)) {
             $sources = array_values(array_filter(
                 $sources,
-                fn (array $source): bool => ($source['type'] ?? '') !== 'youtube',
+                fn (array $source): bool => $source['type'] !== 'youtube',
             ));
         }
 
@@ -326,11 +326,11 @@ class SourceResolver
         $context = $this->playbackContext($tmdbId, $mediaType);
 
         return array_map(function (array $source) use ($context): array {
-            if (($source['type'] ?? '') !== 'embed') {
+            if ($source['type'] !== 'embed') {
                 return $source;
             }
 
-            $providerConfig = $this->findProviderConfig($source['provider'] ?? '');
+            $providerConfig = $this->findProviderConfig($source['provider']);
 
             if ($providerConfig === null) {
                 return $source;
@@ -340,7 +340,7 @@ class SourceResolver
                 $source['url'] = $this->embedUrlBuilder->enrich($source['url'], $providerConfig, $context);
             }
 
-            $postMessage = $this->postMessageConfig($source['provider'] ?? '');
+            $postMessage = $this->postMessageConfig($source['provider']);
 
             if ($postMessage !== null) {
                 $source['supports_postmessage'] = true;

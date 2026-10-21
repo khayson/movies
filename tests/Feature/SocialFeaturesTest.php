@@ -5,6 +5,7 @@ use App\Models\AffiliateClick;
 use App\Models\Follow;
 use App\Models\User;
 use App\Models\UserNotification;
+use App\Models\WatchHistory;
 use App\Models\WatchParty;
 use App\Services\ActivityLogger;
 use Illuminate\Support\Facades\Http;
@@ -192,7 +193,7 @@ test('generate notifications command creates upcoming movie notifications', func
 test('generate notifications command creates personalized recommendations', function () {
     $user = User::factory()->create();
 
-    \App\Models\WatchHistory::factory()->create([
+    WatchHistory::factory()->create([
         'user_id' => $user->id,
         'tmdb_id' => 550,
         'media_type' => 'movie',

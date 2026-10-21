@@ -45,7 +45,7 @@ class StreakService
             $current = Carbon::parse($activeDays[$i]);
             $previous = Carbon::parse($activeDays[$i - 1]);
 
-            if ($current->diffInDays($previous) === 1) {
+            if ($previous->copy()->addDay()->isSameDay($current)) {
                 $streak++;
             } else {
                 $longestStreak = max($longestStreak, $streak);
@@ -62,7 +62,7 @@ class StreakService
                 for ($i = count($activeDays) - 2; $i >= 0; $i--) {
                     $current = Carbon::parse($activeDays[$i + 1]);
                     $previous = Carbon::parse($activeDays[$i]);
-                    if ($current->diffInDays($previous) === 1) {
+                    if ($previous->copy()->addDay()->isSameDay($current)) {
                         $currentStreak++;
                     } else {
                         break;

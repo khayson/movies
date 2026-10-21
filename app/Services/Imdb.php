@@ -59,7 +59,7 @@ class Imdb
             $payload = $this->get("/api/imdb/{$imdbId}/similar");
 
             return $this->normalizeTitleList($payload);
-        }) ?? [];
+        });
 
         return array_slice($titles, 0, $limit);
     }
@@ -84,13 +84,13 @@ class Imdb
             $payload = $this->get("/api/imdb/cast/{$personImdbId}/titles");
 
             return $this->normalizeTitleList($payload);
-        }) ?? [];
+        });
 
         return array_slice($titles, 0, $limit);
     }
 
     /**
-     * @return array<string, mixed>|null
+     * @return array<string, mixed>|list<mixed>|null
      */
     private function get(string $path): ?array
     {
@@ -128,7 +128,7 @@ class Imdb
     }
 
     /**
-     * @param  array<string, mixed>|null  $payload
+     * @param  array<mixed>|null  $payload
      */
     private function extractRating(?array $payload): ?float
     {
@@ -146,7 +146,7 @@ class Imdb
     }
 
     /**
-     * @param  array<string, mixed>|null  $payload
+     * @param  array<mixed>|null  $payload
      */
     private function extractVotes(?array $payload): ?int
     {
@@ -164,7 +164,7 @@ class Imdb
     }
 
     /**
-     * @param  array<string, mixed>|null  $payload
+     * @param  array<mixed>|null  $payload
      */
     private function extractMetascore(?array $payload): ?int
     {
@@ -182,7 +182,7 @@ class Imdb
     }
 
     /**
-     * @param  array<string, mixed>|null  $payload
+     * @param  array<mixed>|null  $payload
      * @return list<array<string, mixed>>
      */
     private function normalizeTitleList(?array $payload): array

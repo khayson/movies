@@ -36,3 +36,56 @@ jobs:
 
       - name: Run CI Checks
         run: composer ci:check
+
+  # Production runs on Postgres (Neon); SQLite alone misses dialect bugs such as MySQL-only functions.
+  postgres:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: streamvault
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: streamvault_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U streamvault"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: streamvault_test
+      DB_USERNAME: streamvault
+      DB_PASSWORD: secret
+      DB_URL: ''
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: '22'
+
+      - name: Setup Application
+        run: composer setup
+
+      - name: Run tests on Postgres
+        run: php artisan test --compact

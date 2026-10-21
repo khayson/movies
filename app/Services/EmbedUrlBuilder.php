@@ -16,6 +16,7 @@ class EmbedUrlBuilder
      *     muted?: bool,
      *     continue_prompt?: bool,
      *     media_type?: string,
+     *     subtitle?: string,
      * }  $context
      */
     public function enrich(string $url, array $provider, array $context = []): string
@@ -60,6 +61,7 @@ class EmbedUrlBuilder
      *     muted?: bool,
      *     continue_prompt?: bool,
      *     media_type?: string,
+     *     subtitle?: string,
      * }  $context
      * @return array<string, bool|int|string>
      */

@@ -61,10 +61,7 @@ class AnimeDb
                     'totalPage' => max(1, (int) ($meta['totalPage'] ?? 1)),
                 ],
             ];
-        }) ?? [
-            'data' => [],
-            'meta' => ['page' => $page, 'size' => $size, 'totalData' => 0, 'totalPage' => 1],
-        ];
+        });
     }
 
     /**
@@ -196,7 +193,7 @@ class AnimeDb
             }
 
             return [];
-        }) ?? [];
+        });
     }
 
     /**
@@ -286,7 +283,7 @@ class AnimeDb
 
     /**
      * @param  array<string, mixed>  $query
-     * @return array<string, mixed>|null
+     * @return array<string, mixed>|list<mixed>|null
      */
     private function get(string $path, array $query = []): ?array
     {
@@ -303,7 +300,7 @@ class AnimeDb
     }
 
     /**
-     * @param  array<string, mixed>  $payload
+     * @param  array<mixed>  $payload
      * @return list<array<string, mixed>>
      */
     private function extractDataList(array $payload): array
@@ -332,7 +329,7 @@ class AnimeDb
     }
 
     /**
-     * @param  array<string, mixed>  $record
+     * @param  array<mixed>  $record
      */
     private function looksLikeAnime(array $record): bool
     {
@@ -344,7 +341,7 @@ class AnimeDb
     }
 
     /**
-     * @param  array<string, mixed>  $record
+     * @param  array<mixed>  $record
      * @return array<string, mixed>
      */
     private function normalizeAnime(array $record): array

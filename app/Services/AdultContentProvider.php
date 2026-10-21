@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Support\AdultSafety;
+use App\Support\ApiPayload;
 use Closure;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
@@ -364,9 +365,9 @@ class AdultContentProvider
         }
 
         $cacheKey = "adult.xnxx.{$mode}.{$page}.".md5($query.$category);
-        $cached = Cache::get($cacheKey);
+        $cached = $this->cachedCatalog($cacheKey);
 
-        if (is_array($cached) && ($cached['videos'] ?? []) !== []) {
+        if ($cached !== null) {
             return $cached;
         }
 
@@ -462,40 +463,6 @@ class AdultContentProvider
                 ];
             } catch (\Throwable) {
                 return null;
-            }
-        });
-    }
-
-    /**
-     * @return array<int, array{name: string, slug: string}>
-     */
-    public function xnxxCategories(string $letter = 'a'): array
-    {
-        $cacheKey = "adult.xnxx.cats.{$letter}";
-
-        return Cache::remember($cacheKey, now()->addHours(6), function () use ($letter): array {
-            $apiKey = config('sources.rapidapi_key');
-            $host = config('sources.rapidapi_hosts.xnxx', 'porn-xnxx-api.p.rapidapi.com');
-
-            if (! $apiKey) {
-                return [];
-            }
-
-            try {
-                $response = Http::timeout(15)
-                    ->withHeaders([
-                        'X-RapidAPI-Key' => $apiKey,
-                        'X-RapidAPI-Host' => $host,
-                    ])
-                    ->get("https://{$host}/categories", ['letter' => $letter])
-                    ->json();
-
-                return collect($response['categories'] ?? [])
-                    ->reject(fn (array $category): bool => AdultSafety::isBlockedQuery((string) ($category['name'] ?? $category['slug'] ?? '')))
-                    ->values()
-                    ->all();
-            } catch (\Throwable) {
-                return [];
             }
         });
     }
@@ -801,19 +768,39 @@ class AdultContentProvider
      */
     private function rememberNonEmpty(string $cacheKey, int $minutes, Closure $callback): array
     {
-        $cached = Cache::get($cacheKey);
+        $cached = $this->cachedCatalog($cacheKey);
 
-        if (is_array($cached) && ($cached['videos'] ?? []) !== []) {
+        if ($cached !== null) {
             return $cached;
         }
 
         $catalog = $callback();
 
-        if (($catalog['videos'] ?? []) !== []) {
+        if ($catalog['videos'] !== []) {
             Cache::put($cacheKey, $catalog, now()->addMinutes($minutes));
         }
 
         return $catalog;
+    }
+
+    /**
+     * A previously cached, non-empty catalog, or null when there is none.
+     *
+     * @return array{videos: array<int, array<string, mixed>>, total_pages: int}|null
+     */
+    private function cachedCatalog(string $cacheKey): ?array
+    {
+        $cached = Cache::get($cacheKey);
+        $videos = ApiPayload::rows(is_array($cached) ? ($cached['videos'] ?? null) : null);
+
+        if ($videos === []) {
+            return null;
+        }
+
+        return [
+            'videos' => array_map(fn (array $video): array => array_filter($video, is_string(...), ARRAY_FILTER_USE_KEY), $videos),
+            'total_pages' => max(1, (int) ($cached['total_pages'] ?? 1)),
+        ];
     }
 
     private function rapidClient(string $host): ?PendingRequest

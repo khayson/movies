@@ -28,7 +28,7 @@ class TvMaze
             }
 
             return $this->mapShows($payload);
-        }) ?? [];
+        });
 
         return array_slice($shows, 0, $limit);
     }
@@ -63,7 +63,7 @@ class TvMaze
             }
 
             return $this->uniqueById($shows);
-        }) ?? [];
+        });
 
         return array_slice($shows, 0, $limit);
     }
@@ -104,7 +104,7 @@ class TvMaze
             }
 
             return $shows;
-        }) ?? [];
+        });
 
         return array_slice($shows, 0, $limit);
     }
@@ -217,7 +217,7 @@ class TvMaze
     }
 
     /**
-     * @param  array<string, mixed>  $show
+     * @param  array<mixed>  $show
      * @return array<string, mixed>|null
      */
     private function mapShow(array $show): ?array

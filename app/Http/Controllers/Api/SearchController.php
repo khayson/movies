@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Services\Tmdb;
+use App\Support\ApiPayload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -30,7 +31,7 @@ class SearchController extends Controller
             'page' => 1,
         ]);
 
-        $results = collect($data['results'] ?? [])
+        $results = collect(ApiPayload::rows($data['results'] ?? null))
             ->take(8)
             ->map(fn (array $item): array => $this->formatResult($item, $tmdb, (string) $type))
             ->values()
@@ -44,6 +45,7 @@ class SearchController extends Controller
     }
 
     /**
+     * @param  array<string, mixed>  $item
      * @return array<string, mixed>
      */
     private function formatResult(array $item, Tmdb $tmdb, string $searchType): array
@@ -98,7 +100,7 @@ class SearchController extends Controller
     {
         $data = $tmdb->trending('all', 'day');
 
-        $results = collect($data['results'] ?? [])
+        $results = collect(ApiPayload::rows($data['results'] ?? null))
             ->take(6)
             ->map(fn (array $item): array => $this->formatResult($item, $tmdb, 'multi'))
             ->values()

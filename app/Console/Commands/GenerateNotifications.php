@@ -241,11 +241,11 @@ class GenerateNotifications extends Command
             $watchlistItems = $user->watchlist()->take(5)->get();
 
             foreach ($watchlistItems as $item) {
-                // Determine if it was recently released or updated. 
+                // Determine if it was recently released or updated.
                 // For demonstration, we just remind them it is on their watchlist.
                 $title = $item->title ?? 'Watchlist Item';
                 $tmdbId = $item->tmdb_id;
-                
+
                 $exists = UserNotification::where('user_id', $user->id)
                     ->where('tmdb_id', $tmdbId)
                     ->where('type', 'watchlist_update')

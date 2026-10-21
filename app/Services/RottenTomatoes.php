@@ -133,13 +133,13 @@ class RottenTomatoes
                 break;
             }
 
-            $title = $item['title'] ?? null;
+            $title = $item['title'];
 
-            if (! is_string($title) || $title === '') {
+            if ($title === '') {
                 continue;
             }
 
-            $preferredType = ($item['type'] ?? 'movie') === 'tv' ? 'tv' : 'movie';
+            $preferredType = $item['type'] === 'tv' ? 'tv' : 'movie';
             $year = $item['year'] ?? null;
             $cacheKey = 'rt.tmdb.'.md5($preferredType.'|'.Str::lower($title).'|'.($year ?? ''));
 
@@ -221,13 +221,13 @@ class RottenTomatoes
             }
 
             return $this->mapListRecords($payload, $type);
-        }) ?? [];
+        });
 
         return array_slice($items, 0, $limit);
     }
 
     /**
-     * @param  array<string, mixed>  $payload
+     * @param  array<mixed>  $payload
      * @return list<array{title: string, image: string|null, tomatometer: int|null, audience: int|null, year: int|null, type: string}>
      */
     private function mapListRecords(array $payload, string $type): array
@@ -256,7 +256,7 @@ class RottenTomatoes
 
     /**
      * @param  array<string, mixed>  $query
-     * @return array<string, mixed>|null
+     * @return array<string, mixed>|list<mixed>|null
      */
     private function get(string $path, array $query = []): ?array
     {
@@ -284,7 +284,7 @@ class RottenTomatoes
     }
 
     /**
-     * @param  array<string, mixed>  $payload
+     * @param  array<mixed>  $payload
      * @return array<string, mixed>|null
      */
     private function pickBestMatch(array $payload, string $title, ?int $year): ?array
@@ -305,7 +305,7 @@ class RottenTomatoes
     }
 
     /**
-     * @param  array<string, mixed>  $payload
+     * @param  array<mixed>  $payload
      * @return list<array<string, mixed>>
      */
     private function normalizeRecordList(array $payload): array

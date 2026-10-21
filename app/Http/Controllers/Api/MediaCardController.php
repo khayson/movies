@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Favorite;
 use App\Models\Watchlist;
 use App\Services\Tmdb;
+use App\Support\ApiPayload;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -19,12 +20,12 @@ class MediaCardController extends Controller
 
         $trailerKey = Tmdb::extractTrailerKey($details['videos']['results'] ?? []);
 
-        $genres = collect($details['genres'] ?? [])
+        $genres = collect(ApiPayload::rows($details['genres'] ?? null))
             ->take(3)
             ->pluck('name')
             ->all();
 
-        $cast = collect($details['credits']['cast'] ?? [])
+        $cast = collect(ApiPayload::rows($details['credits']['cast'] ?? null))
             ->take(4)
             ->map(fn (array $p): array => [
                 'name' => $p['name'],

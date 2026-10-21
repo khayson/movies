@@ -8,6 +8,7 @@ use App\Services\Tmdb;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Mail;
 
 #[Signature('app:send-weekly-digest {--limit= : Max digests to send this run (free mail quota safety)}')]
@@ -33,12 +34,10 @@ class SendWeeklyDigest extends Command
             $reviewsThisWeek = $user->reviews()->where('created_at', '>=', $weekAgo)->count();
             $currentStreak = $user->watchHistory()
                 ->visible()
-                ->select('created_at')
-                ->orderByDesc('created_at')
+                ->reorder('created_at', 'desc')
                 ->limit(30)
-                ->get()
                 ->pluck('created_at')
-                ->map(fn ($d) => $d->toDateString())
+                ->map(fn (mixed $createdAt): string => Carbon::parse($createdAt)->toDateString())
                 ->unique()
                 ->values();
 
@@ -61,7 +60,7 @@ class SendWeeklyDigest extends Command
                     ->orderByDesc('recent_watches')
                     ->limit(3)
                     ->get()
-                    ->map(fn (User $u) => ['name' => $u->name, 'watches' => $u->recent_watches])
+                    ->map(fn (User $u): array => ['name' => $u->name, 'watches' => (int) $u->getAttribute('recent_watches')])
                     ->all();
             }
 
