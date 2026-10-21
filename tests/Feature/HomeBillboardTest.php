@@ -4,13 +4,13 @@ use Illuminate\Support\Facades\Http;
 
 beforeEach(function () {
     Http::fake([
-        'api.themoviedb.org/3/trending/movie/day*' => Http::response([
+        'api.themoviedb.org/3/trending/movie/week*' => Http::response([
             'results' => [
                 ['id' => 101, 'title' => 'Daily Movie One', 'poster_path' => '/m1.jpg', 'media_type' => 'movie'],
                 ['id' => 102, 'title' => 'Daily Movie Two', 'poster_path' => '/m2.jpg', 'media_type' => 'movie'],
             ],
         ]),
-        'api.themoviedb.org/3/trending/tv/day*' => Http::response([
+        'api.themoviedb.org/3/trending/tv/week*' => Http::response([
             'results' => [
                 ['id' => 201, 'name' => 'Daily Show One', 'poster_path' => '/t1.jpg', 'media_type' => 'tv'],
             ],
@@ -38,7 +38,7 @@ beforeEach(function () {
 test('home page shows ranked top 10 rows for movies and shows', function () {
     $this->get(route('home'))
         ->assertOk()
-        ->assertSeeInOrder(['Top 10 Movies Today', '#1 Daily Movie One', '#2 Daily Movie Two', 'Top 10 Shows Today', '#1 Daily Show One'])
+        ->assertSeeInOrder(['Top 10 Movies This Week', '#1 Daily Movie One', '#2 Daily Movie Two', 'Top 10 Shows This Week', '#1 Daily Show One'])
         ->assertSee(route('movies.detail', 101))
         ->assertSee(route('tv.detail', 201));
 });

@@ -3,6 +3,7 @@
 use App\Services\AnimeDb;
 use App\Services\PersonalizedRows;
 use App\Services\RottenTomatoes;
+use App\Services\TopTen;
 use App\Services\Tmdb;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -13,7 +14,7 @@ new
 #[Title('StreamVault — Free Movie & TV Streaming')]
 class extends Component
 {
-    public function with(Tmdb $tmdb, RottenTomatoes $rottenTomatoes, AnimeDb $animeDb, PersonalizedRows $personalizedRows): array
+    public function with(Tmdb $tmdb, RottenTomatoes $rottenTomatoes, AnimeDb $animeDb, PersonalizedRows $personalizedRows, TopTen $topTen): array
     {
         $continueWatching = auth()->check()
             ? auth()->user()->watchHistory()->visible()->limit(10)->get()
@@ -33,8 +34,8 @@ class extends Component
             ->values()
             ->all();
         $airingToday = $tmdb->airingToday()['results'] ?? [];
-        $topTenMovies = array_slice($tmdb->trending('movie', 'day')['results'] ?? [], 0, 10);
-        $topTenShows = array_slice($tmdb->trending('tv', 'day')['results'] ?? [], 0, 10);
+        $topTenMovies = $topTen->forType('movie');
+        $topTenShows = $topTen->forType('tv');
 
         $rtNetflixTop = $rottenTomatoes->toTmdbCards($rottenTomatoes->netflixTopTv(24), $tmdb, 12);
         $rtComingSoon = $rottenTomatoes->toTmdbCards($rottenTomatoes->comingSoon(24), $tmdb, 12);
@@ -499,8 +500,8 @@ class extends Component
         @endforeach
 
         {{-- Top 10 --}}
-        @include('partials.top-ten-row', ['title' => 'Top 10 Movies Today', 'items' => $topTenMovies, 'type' => 'movie'])
-        @include('partials.top-ten-row', ['title' => 'Top 10 Shows Today', 'items' => $topTenShows, 'type' => 'tv'])
+        @include('partials.top-ten-row', ['title' => 'Top 10 Movies This Week', 'items' => $topTenMovies, 'type' => 'movie'])
+        @include('partials.top-ten-row', ['title' => 'Top 10 Shows This Week', 'items' => $topTenShows, 'type' => 'tv'])
 
         {{-- Anime hub --}}
         @if(count($topAnime) > 0 || $featuredAnime)
