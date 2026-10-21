@@ -7,6 +7,7 @@ use Closure;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 class AdultContentProvider
 {
@@ -52,14 +53,20 @@ class AdultContentProvider
     }
 
     /**
-     * URL-safe route key for a video reference.
+     * URL-safe route key for a video: its reference plus the catalog title, which the
+     * watch page shows while (and when) the provider has no title of its own.
      */
-    public static function encodeWatchKey(string $reference): string
+    public static function encodeWatchKey(string $reference, string $title = ''): string
     {
-        return rtrim(strtr(base64_encode($reference), '+/', '-_'), '=');
+        $payload = $title === '' ? $reference : $reference."\n".Str::limit($title, 200, '');
+
+        return rtrim(strtr(base64_encode($payload), '+/', '-_'), '=');
     }
 
-    public static function decodeWatchKey(string $key): ?string
+    /**
+     * @return array{reference: string, title: string}|null
+     */
+    public static function decodeWatchKey(string $key): ?array
     {
         if ($key === '' || strlen($key) > 2048 || preg_match('/^[A-Za-z0-9_-]+$/', $key) !== 1) {
             return null;
@@ -68,31 +75,73 @@ class AdultContentProvider
         $padded = str_pad(strtr($key, '-_', '+/'), (int) (ceil(strlen($key) / 4) * 4), '=');
         $decoded = base64_decode($padded, true);
 
-        return is_string($decoded) && $decoded !== '' ? $decoded : null;
+        if (! is_string($decoded) || $decoded === '') {
+            return null;
+        }
+
+        [$reference, $title] = array_pad(explode("\n", $decoded, 2), 2, '');
+
+        return $reference === '' ? null : ['reference' => $reference, 'title' => trim($title)];
+    }
+
+    /**
+     * Route key for a catalog video, or null when the video cannot be identified.
+     *
+     * @param  array<string, mixed>  $video
+     */
+    public static function watchKey(string $provider, array $video): ?string
+    {
+        $reference = self::watchReference($provider, $video);
+
+        return $reference === '' ? null : self::encodeWatchKey($reference, (string) ($video['title'] ?? ''));
+    }
+
+    /**
+     * Whether the reference really identifies a video on that provider: a link on the
+     * provider's own domain, or a well-formed Eporner/RedTube id.
+     */
+    public static function isValidReference(string $provider, string $reference): bool
+    {
+        if (isset(self::LINKED_VIDEO_DOMAINS[$provider])) {
+            $domain = self::LINKED_VIDEO_DOMAINS[$provider];
+            $scheme = strtolower((string) parse_url($reference, PHP_URL_SCHEME));
+            $host = strtolower((string) parse_url($reference, PHP_URL_HOST));
+
+            return in_array($scheme, ['http', 'https'], true)
+                && ($host === $domain || str_ends_with($host, '.'.$domain));
+        }
+
+        return match ($provider) {
+            'eporner' => preg_match('/^[A-Za-z0-9]+$/', $reference) === 1,
+            'redtube' => preg_match('/^\d+$/', $reference) === 1,
+            default => false,
+        };
     }
 
     /**
      * Resolve one tube video into display metadata and every playable source.
      *
-     * Returns null when the provider is unknown, the reference does not belong to
-     * that provider, or the title is blocked.
+     * Returns null when the reference does not belong to the provider or the title is blocked.
      *
      * @return array{provider: string, title: string, thumbnail: string, duration: string, views: string, rating: string, sources: list<array{label: string, type: string, url: string}>}|null
      */
-    public function video(string $provider, string $reference): ?array
+    public function video(string $provider, string $reference, string $title = ''): ?array
     {
-        $video = match ($provider) {
-            'xnxx', 'pornhub', 'xvideos' => $this->linkedVideo($provider, $reference),
-            'eporner' => $this->epornerVideo($reference),
-            'redtube' => $this->redtubeVideo($reference),
-            default => null,
-        };
-
-        if ($video === null || AdultSafety::rejectBlockedTitles([$video]) === []) {
+        if (! self::isValidReference($provider, $reference)) {
             return null;
         }
 
-        return $video;
+        $video = match ($provider) {
+            'eporner' => $this->epornerVideo($reference),
+            'redtube' => $this->redtubeVideo($reference),
+            default => $this->linkedVideo($provider, $reference, $title),
+        };
+
+        if ($title !== '' && in_array($provider, ['eporner', 'redtube'], true) && $video['title'] === self::TUBE_PROVIDERS[$provider].' video') {
+            $video['title'] = $title;
+        }
+
+        return AdultSafety::rejectBlockedTitles([$video]) === [] ? null : $video;
     }
 
     /**
@@ -123,29 +172,29 @@ class AdultContentProvider
     }
 
     /**
-     * @return array{provider: string, title: string, thumbnail: string, duration: string, views: string, rating: string, sources: list<array{label: string, type: string, url: string}>}|null
+     * PornHub stream links are locked to the IP that requested them, so its videos
+     * only use the embedded player and skip the download API entirely.
+     *
+     * @return array{provider: string, title: string, thumbnail: string, duration: string, views: string, rating: string, sources: list<array{label: string, type: string, url: string}>}
      */
-    private function linkedVideo(string $provider, string $link): ?array
+    private function linkedVideo(string $provider, string $link, string $catalogTitle): array
     {
-        $domain = self::LINKED_VIDEO_DOMAINS[$provider];
-        $scheme = strtolower((string) parse_url($link, PHP_URL_SCHEME));
-        $host = strtolower((string) parse_url($link, PHP_URL_HOST));
-
-        if (! in_array($scheme, ['http', 'https'], true) || ($host !== $domain && ! str_ends_with($host, '.'.$domain))) {
-            return null;
-        }
-
         $stream = match ($provider) {
             'xnxx' => $this->xnxxDownload($link),
-            'pornhub' => $this->pornhubDownload($link),
-            default => $this->xvideosDownload($link),
+            'xvideos' => $this->xvideosDownload($link),
+            default => null,
         };
 
-        $title = (string) ($stream['title'] ?? '');
+        $streamTitle = (string) ($stream['title'] ?? '');
+        $title = match (true) {
+            $catalogTitle !== '' => $catalogTitle,
+            $streamTitle !== '' && $streamTitle !== 'Untitled' => $streamTitle,
+            default => $this->titleFromLink($link),
+        };
 
         return $this->videoDetails(
             provider: $provider,
-            title: $title !== '' && $title !== 'Untitled' ? $title : $this->titleFromLink($link),
+            title: $title,
             thumbnail: (string) ($stream['thumbnail'] ?? ''),
             stream: $stream,
             embedUrl: $this->linkedEmbedUrl($provider, $link),
@@ -153,14 +202,10 @@ class AdultContentProvider
     }
 
     /**
-     * @return array{provider: string, title: string, thumbnail: string, duration: string, views: string, rating: string, sources: list<array{label: string, type: string, url: string}>}|null
+     * @return array{provider: string, title: string, thumbnail: string, duration: string, views: string, rating: string, sources: list<array{label: string, type: string, url: string}>}
      */
-    private function epornerVideo(string $id): ?array
+    private function epornerVideo(string $id): array
     {
-        if (preg_match('/^[A-Za-z0-9]+$/', $id) !== 1) {
-            return null;
-        }
-
         $details = $this->cachedVideoDetails("adult.eporner.video.{$id}", fn (): array => $this->mapEpornerVideos([
             Http::timeout(10)->connectTimeout(5)->acceptJson()
                 ->get('https://www.eporner.com/api/v2/video/id/', ['id' => $id, 'thumbsize' => 'big', 'format' => 'json'])
@@ -180,14 +225,10 @@ class AdultContentProvider
     }
 
     /**
-     * @return array{provider: string, title: string, thumbnail: string, duration: string, views: string, rating: string, sources: list<array{label: string, type: string, url: string}>}|null
+     * @return array{provider: string, title: string, thumbnail: string, duration: string, views: string, rating: string, sources: list<array{label: string, type: string, url: string}>}
      */
-    private function redtubeVideo(string $id): ?array
+    private function redtubeVideo(string $id): array
     {
-        if (preg_match('/^\d+$/', $id) !== 1) {
-            return null;
-        }
-
         $details = $this->cachedVideoDetails("adult.redtube.video.{$id}", fn (): array => $this->mapRedtubeVideos([
             Http::timeout(10)->connectTimeout(5)->acceptJson()
                 ->get('https://api.redtube.com/', [
@@ -510,67 +551,6 @@ class AdultContentProvider
         }
 
         return $catalog;
-    }
-
-    /**
-     * @return array{title: string, video_low: string, video_high: string, hls: string, thumbnail: string}|null
-     */
-    public function pornhubDownload(string $videoLink): ?array
-    {
-        $cacheKey = 'adult.pornhub.dl.'.md5($videoLink);
-
-        return Cache::remember($cacheKey, now()->addMinutes(5), function () use ($videoLink): ?array {
-            $apiKey = config('sources.rapidapi_key');
-            $host = config('sources.rapidapi_hosts.pornhub', 'pornhub-api-xnxx.p.rapidapi.com');
-
-            if (! $apiKey) {
-                return null;
-            }
-
-            try {
-                $http = $this->rapidClient($host);
-
-                if (! $http) {
-                    return null;
-                }
-
-                $response = $http
-                    ->asJson()
-                    ->post("https://{$host}/api/download", ['url' => $videoLink]);
-
-                $payload = $response->successful() ? $response->json() : null;
-                $mapped = $this->mapPornhubDownload($payload);
-
-                if ($mapped !== null) {
-                    return $mapped;
-                }
-
-                $legacy = Http::timeout(15)
-                    ->connectTimeout(5)
-                    ->acceptJson()
-                    ->withHeaders([
-                        'X-RapidAPI-Key' => $apiKey,
-                        'X-RapidAPI-Host' => $host,
-                        'Content-Type' => 'application/json',
-                    ])
-                    ->post("https://{$host}/api/download", ['video_link' => $videoLink])
-                    ->json();
-
-                if (empty($legacy['video_high']) && empty($legacy['hls'])) {
-                    return null;
-                }
-
-                return [
-                    'title' => $legacy['title'] ?? 'Untitled',
-                    'video_low' => $legacy['video_low'] ?? '',
-                    'video_high' => $legacy['video_high'] ?? '',
-                    'hls' => $legacy['hls'] ?? '',
-                    'thumbnail' => $legacy['thumbnail'] ?? '',
-                ];
-            } catch (\Throwable) {
-                return null;
-            }
-        });
     }
 
     /**
@@ -973,63 +953,6 @@ class AdultContentProvider
         }
 
         return '';
-    }
-
-    /**
-     * @return array{title: string, video_low: string, video_high: string, hls: string, thumbnail: string}|null
-     */
-    private function mapPornhubDownload(mixed $payload): ?array
-    {
-        if (is_array($payload) && (! empty($payload['video_high']) || ! empty($payload['hls']))) {
-            return [
-                'title' => $payload['title'] ?? 'Untitled',
-                'video_low' => $payload['video_low'] ?? '',
-                'video_high' => $payload['video_high'] ?? '',
-                'hls' => $payload['hls'] ?? '',
-                'thumbnail' => $payload['thumbnail'] ?? '',
-            ];
-        }
-
-        $formats = $this->extractRows($payload);
-        $hls = '';
-        $high = '';
-        $low = '';
-
-        foreach ($formats as $format) {
-            $url = (string) ($format['url'] ?? '');
-            $id = strtolower((string) ($format['id'] ?? ''));
-
-            if ($url === '') {
-                continue;
-            }
-
-            if (str_contains($id, 'hls') || str_contains($url, '.m3u8')) {
-                $hls = $hls !== '' ? $hls : $url;
-
-                continue;
-            }
-
-            if (str_contains($id, '240') || str_contains($id, '360')) {
-                $low = $low !== '' ? $low : $url;
-                $high = $high !== '' ? $high : $url;
-
-                continue;
-            }
-
-            $high = $url;
-        }
-
-        if ($hls === '' && $high === '' && $low === '') {
-            return null;
-        }
-
-        return [
-            'title' => 'Untitled',
-            'video_low' => $low,
-            'video_high' => $high !== '' ? $high : $low,
-            'hls' => $hls,
-            'thumbnail' => '',
-        ];
     }
 
     /**

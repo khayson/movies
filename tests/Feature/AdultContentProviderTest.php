@@ -201,13 +201,27 @@ test('redtube falls back to newest when the default feed is empty', function () 
         ->and($catalog['videos'][0]['provider'])->toBe('RedTube');
 });
 
-test('watch keys round-trip video links', function () {
+test('watch keys round-trip video links and catalog titles', function () {
     $link = 'https://www.xnxx.com/video-abc123/studio_cut?x=1&y=2';
-    $key = AdultContentProvider::encodeWatchKey($link);
+    $key = AdultContentProvider::encodeWatchKey($link, 'Studio Cut');
 
     expect($key)->toMatch('/^[A-Za-z0-9_-]+$/')
-        ->and(AdultContentProvider::decodeWatchKey($key))->toBe($link)
+        ->and(AdultContentProvider::decodeWatchKey($key))->toBe(['reference' => $link, 'title' => 'Studio Cut'])
+        ->and(AdultContentProvider::decodeWatchKey(AdultContentProvider::encodeWatchKey('42')))->toBe(['reference' => '42', 'title' => ''])
         ->and(AdultContentProvider::decodeWatchKey('not base64!'))->toBeNull();
+});
+
+test('pornhub videos use the embed player without calling the download api', function () {
+    Http::fake();
+
+    $video = app(AdultContentProvider::class)->video('pornhub', 'https://www.pornhub.com/view_video.php?viewkey=abc123', 'Catalog Title');
+
+    expect($video['title'])->toBe('Catalog Title')
+        ->and($video['sources'])->toBe([
+            ['label' => 'PornHub player', 'type' => 'embed', 'url' => 'https://www.pornhub.com/embed/abc123'],
+        ]);
+
+    Http::assertNothingSent();
 });
 
 test('linked videos from another site are rejected without calling the download api', function () {

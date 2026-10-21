@@ -421,10 +421,10 @@ class extends Component
             <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
                 @foreach($videos as $video)
                     @php
-                        $tubeReference = $isTmdbCatalog ? '' : \App\Services\AdultContentProvider::watchReference($provider, $video);
+                        $tubeKey = $isTmdbCatalog ? null : \App\Services\AdultContentProvider::watchKey($provider, $video);
                         $watchUrl = match (true) {
                             $isTmdbCatalog && ! empty($video['tmdb_id']) => route('watch', ['type' => $video['media_type'] ?? ($provider === 'tmdb_tv' ? 'tv' : 'movie'), 'tmdbId' => $video['tmdb_id']]),
-                            $tubeReference !== '' => route('adult.watch', ['provider' => $provider, 'key' => \App\Services\AdultContentProvider::encodeWatchKey($tubeReference)]),
+                            $tubeKey !== null => route('adult.watch', ['provider' => $provider, 'key' => $tubeKey]),
                             default => null,
                         };
                     @endphp

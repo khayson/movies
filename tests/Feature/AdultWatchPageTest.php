@@ -3,6 +3,7 @@
 use App\Models\User;
 use App\Services\AdultContentProvider;
 use Illuminate\Support\Facades\Http;
+use Livewire\Livewire;
 
 function verifiedAdultViewer(): User
 {
@@ -17,7 +18,7 @@ test('guests cannot open the adult watch page', function () {
         ->assertRedirect(route('login'));
 });
 
-test('adult watch page shows the player, sources and other providers', function () {
+test('adult watch page renders instantly and loads the video after first paint', function () {
     Http::fake([
         'api.redtube.com/*' => Http::response([
             'video' => [
@@ -31,10 +32,18 @@ test('adult watch page shows the player, sources and other providers', function 
         ]),
     ]);
 
+    $key = AdultContentProvider::encodeWatchKey('42', 'Late Night Pick');
+
     $this->actingAs(verifiedAdultViewer())
-        ->get(route('adult.watch', ['provider' => 'redtube', 'key' => AdultContentProvider::encodeWatchKey('42')]))
+        ->get(route('adult.watch', ['provider' => 'redtube', 'key' => $key]))
         ->assertOk()
         ->assertSee('Late Night Pick')
+        ->assertSee('Finding the best source');
+
+    Http::assertNothingSent();
+
+    Livewire::test('pages::adult-watch', ['provider' => 'redtube', 'key' => $key])
+        ->call('load')
         ->assertSee('https://embed.redtube.com/?id=42', false)
         ->assertSee('RedTube player')
         ->assertSee('Find it on other sources')
@@ -67,5 +76,5 @@ test('adult browse links tube videos to the watch page', function () {
     $this->actingAs(verifiedAdultViewer())
         ->get(route('adult.browse', ['provider' => 'eporner']))
         ->assertOk()
-        ->assertSee(route('adult.watch', ['provider' => 'eporner', 'key' => AdultContentProvider::encodeWatchKey('AbC123')]), false);
+        ->assertSee(route('adult.watch', ['provider' => 'eporner', 'key' => AdultContentProvider::encodeWatchKey('AbC123', 'Weekly Pick')]), false);
 });

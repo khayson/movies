@@ -14,15 +14,33 @@ class extends Component
 
     public string $key;
 
+    public string $reference;
+
+    public string $catalogTitle;
+
     public int $activeSource = 0;
+
+    /**
+     * The page renders instantly and fetches the video right after (wire:init),
+     * because provider lookups can take several seconds.
+     */
+    public bool $ready = false;
 
     public function mount(string $provider, string $key): void
     {
-        abort_unless(array_key_exists($provider, AdultContentProvider::TUBE_PROVIDERS), 404);
-        abort_if(AdultContentProvider::decodeWatchKey($key) === null, 404);
+        $decoded = AdultContentProvider::decodeWatchKey($key);
+
+        abort_unless($decoded !== null && AdultContentProvider::isValidReference($provider, $decoded['reference']), 404);
 
         $this->provider = $provider;
         $this->key = $key;
+        $this->reference = $decoded['reference'];
+        $this->catalogTitle = $decoded['title'];
+    }
+
+    public function load(): void
+    {
+        $this->ready = true;
     }
 
     public function selectSource(int $index): void
@@ -39,32 +57,29 @@ class extends Component
 
     public function with(AdultContentProvider $adultProvider): array
     {
-        $reference = (string) AdultContentProvider::decodeWatchKey($this->key);
-        $video = $adultProvider->video($this->provider, $reference);
-
-        abort_if($video === null, 404);
-
-        $sources = $video['sources'];
-        $searchTerms = Str::of($video['title'])->replaceMatches('/[^\pL\pN\s]+/u', ' ')->squish()->words(5, '')->toString();
+        $video = $this->ready ? $adultProvider->video($this->provider, $this->reference, $this->catalogTitle) : null;
+        $sources = $video['sources'] ?? [];
+        $title = $video['title'] ?? $this->catalogTitle;
 
         return [
             'video' => $video,
+            'title' => $title,
             'providerName' => AdultContentProvider::TUBE_PROVIDERS[$this->provider],
             'sources' => $sources,
             'source' => $sources[$this->activeSource] ?? $sources[0] ?? null,
             'activeIndex' => isset($sources[$this->activeSource]) ? $this->activeSource : 0,
-            'related' => $adultProvider->related($this->provider, $reference),
+            'related' => $this->ready ? $adultProvider->related($this->provider, $this->reference) : [],
             'otherProviders' => collect(AdultContentProvider::TUBE_PROVIDERS)->except($this->provider)->all(),
-            'searchTerms' => $searchTerms,
+            'searchTerms' => Str::of($title)->replaceMatches('/[^\pL\pN\s]+/u', ' ')->squish()->words(5, '')->toString(),
             'blurPreviews' => auth()->user()?->adultBlurPreviews() ?? true,
             'stealthMode' => auth()->user()?->adultStealthEnabled() ?? false,
         ];
     }
 }; ?>
 
-<div class="relative" x-data x-on:keydown.shift.escape.window="$wire.quickExit()">
+<div class="relative" wire:init="load" x-data x-on:keydown.shift.escape.window="$wire.quickExit()">
     {{-- Cinematic backdrop --}}
-    @if($video['thumbnail'] !== '' && ! $blurPreviews)
+    @if(($video['thumbnail'] ?? '') !== '' && ! $blurPreviews)
         <div class="pointer-events-none absolute inset-x-0 top-0 h-[600px] overflow-hidden">
             <img src="{{ $video['thumbnail'] }}" alt="" class="h-full w-full object-cover opacity-15 blur-2xl">
             <div class="absolute inset-0 bg-gradient-to-b from-zinc-950/30 via-zinc-950/80 to-zinc-950"></div>
@@ -97,9 +112,17 @@ class extends Component
             <div class="min-w-0 flex-1">
                 <div class="overflow-hidden rounded-2xl border border-white/[0.06] bg-zinc-900/80 shadow-2xl shadow-black/50">
                     <div class="relative aspect-video w-full bg-black" wire:key="adult-player-{{ $activeIndex }}">
-                        @if($source === null)
+                        @if(! $ready)
+                            <div class="flex h-full flex-col items-center justify-center gap-3">
+                                <svg class="size-10 animate-spin text-red-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <p class="text-sm text-zinc-400">Finding the best source…</p>
+                            </div>
+                        @elseif($source === null)
                             <div class="flex h-full flex-col items-center justify-center gap-2 text-center">
-                                <p class="text-sm text-zinc-400">No playable source for this video right now.</p>
+                                <p class="text-sm text-zinc-400">{{ $video === null ? 'This video is unavailable.' : 'No playable source for this video right now.' }}</p>
                                 <p class="text-xs text-zinc-600">Try another video or check back later.</p>
                             </div>
                         @elseif($source['type'] === 'embed')
@@ -181,19 +204,23 @@ class extends Component
 
                 {{-- Title + metadata --}}
                 <div class="mt-6">
-                    <h1 class="text-xl font-bold tracking-tight sm:text-2xl lg:text-3xl">{{ $video['title'] }}</h1>
+                    @if($title !== '')
+                        <h1 class="text-xl font-bold tracking-tight sm:text-2xl lg:text-3xl">{{ $title }}</h1>
+                    @else
+                        <div class="h-8 w-2/3 animate-pulse rounded-lg bg-white/[0.06]"></div>
+                    @endif
                     <div class="mt-2 flex flex-wrap items-center gap-2 text-sm">
                         <span class="rounded-md bg-red-600/80 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider text-white">{{ $providerName }}</span>
-                        @if($video['rating'] !== '')
+                        @if(($video['rating'] ?? '') !== '')
                             <span class="inline-flex items-center gap-1 rounded-md bg-amber-500/10 px-2 py-0.5 text-xs font-semibold text-amber-400">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
                                 {{ $video['rating'] }}
                             </span>
                         @endif
-                        @if($video['duration'] !== '')
+                        @if(($video['duration'] ?? '') !== '')
                             <span class="text-zinc-500">&bull; {{ $video['duration'] }}</span>
                         @endif
-                        @if($video['views'] !== '')
+                        @if(($video['views'] ?? '') !== '')
                             <span class="text-zinc-500">&bull; {{ $video['views'] }} views</span>
                         @endif
                     </div>
@@ -225,7 +252,7 @@ class extends Component
                     <div class="max-h-[640px] space-y-1 overflow-y-auto p-2">
                         @forelse($related as $item)
                             <a
-                                href="{{ route('adult.watch', ['provider' => $provider, 'key' => \App\Services\AdultContentProvider::encodeWatchKey(\App\Services\AdultContentProvider::watchReference($provider, $item))]) }}"
+                                href="{{ route('adult.watch', ['provider' => $provider, 'key' => \App\Services\AdultContentProvider::watchKey($provider, $item)]) }}"
                                 wire:navigate
                                 class="group flex gap-3 rounded-xl p-2 transition hover:bg-white/[0.04]"
                             >
@@ -245,7 +272,16 @@ class extends Component
                                 </div>
                             </a>
                         @empty
-                            <p class="px-2 py-6 text-center text-xs text-zinc-600">Nothing else to show right now.</p>
+                            @if($ready)
+                                <p class="px-2 py-6 text-center text-xs text-zinc-600">Nothing else to show right now.</p>
+                            @else
+                                @foreach(range(1, 6) as $skeleton)
+                                    <div wire:key="related-skeleton-{{ $skeleton }}" class="flex gap-3 p-2">
+                                        <div class="aspect-video w-32 shrink-0 animate-pulse rounded-lg bg-white/[0.06]"></div>
+                                        <div class="h-4 flex-1 animate-pulse rounded bg-white/[0.06]"></div>
+                                    </div>
+                                @endforeach
+                            @endif
                         @endforelse
                     </div>
                 </div>
