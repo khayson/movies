@@ -1,6 +1,7 @@
 <?php
 
 use App\Services\Tmdb;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 
@@ -201,6 +202,24 @@ test('home page stays available when tmdb is unreachable', function () {
 
     $this->get(route('home'))->assertOk();
 });
+
+test('home page stays available when the tmdb api key is rejected', function () {
+    Http::fake([
+        '*' => Http::response(['status_code' => 7, 'status_message' => 'Invalid API key'], 401),
+    ]);
+
+    $this->get(route('home'))->assertOk();
+
+    expect(app(Tmdb::class)->trending('movie', 'day'))->toHaveKey('results');
+});
+
+test('tmdb still reports unknown titles as not found', function () {
+    Http::fake([
+        '*' => Http::response(['status_code' => 34, 'status_message' => 'Not found'], 404),
+    ]);
+
+    app(Tmdb::class)->details('movie', 999999999);
+})->throws(RequestException::class);
 
 test('tmdb relatedFromDetails prefers recommendations then newer similar titles', function () {
     $related = app(Tmdb::class)->relatedFromDetails([

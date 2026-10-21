@@ -2,6 +2,11 @@
 
 use App\Models\QuizScore;
 use App\Models\User;
+use Illuminate\Support\Facades\Http;
+
+beforeEach(function () {
+    Http::fake(['*' => Http::response(['results' => [], 'total_pages' => 1])]);
+});
 
 test('trending page loads', function () {
     $this->get(route('trending'))

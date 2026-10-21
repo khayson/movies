@@ -85,10 +85,14 @@ test('mood picker page loads successfully', function () {
 });
 
 test('search page loads in standard mode', function () {
+    Http::fake(['*' => Http::response(['results' => [], 'total_pages' => 1])]);
+
     $this->get('/search')->assertSuccessful();
 });
 
 test('search page loads in ai mode', function () {
+    Http::fake(['*' => Http::response(['results' => [], 'total_pages' => 1])]);
+
     $this->get('/search?mode=ai')->assertSuccessful();
 });
 

@@ -47,7 +47,7 @@ class Tmdb
         } catch (ConnectionException $e) {
             return $this->recoverFromUpstreamFailure($e, $endpoint, $params, $cacheKey, $staleKey);
         } catch (RequestException $e) {
-            if (! $e->response->serverError() && $e->response->status() !== 429) {
+            if (! $this->isUpstreamFailure($e)) {
                 throw $e;
             }
 
@@ -84,7 +84,7 @@ class Tmdb
 
                 continue;
             } catch (RequestException $e) {
-                if (! $e->response->serverError() && $e->response->status() !== 429) {
+                if (! $this->isUpstreamFailure($e)) {
                     throw $e;
                 }
 
@@ -95,6 +95,15 @@ class Tmdb
         }
 
         throw $lastException ?? new ConnectionException('All TMDB hosts failed.');
+    }
+
+    /**
+     * Failures on TMDB's side (outage, rate limit, rejected API key) fall back to cached data
+     * instead of breaking the page. Other client errors, such as 404 for an unknown title, propagate.
+     */
+    private function isUpstreamFailure(RequestException $e): bool
+    {
+        return $e->response->serverError() || in_array($e->response->status(), [401, 403, 429], true);
     }
 
     /**

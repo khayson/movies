@@ -1,5 +1,11 @@
 <?php
 
+use Illuminate\Support\Facades\Http;
+
+beforeEach(function () {
+    Http::fake(['*' => Http::response(['results' => [], 'total_pages' => 1])]);
+});
+
 test('web app manifest exists in public assets', function () {
     expect(file_exists(public_path('manifest.webmanifest')))->toBeTrue();
 
