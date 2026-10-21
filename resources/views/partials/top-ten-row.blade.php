@@ -26,7 +26,7 @@
                     <li class="shrink-0">
                         <a
                             href="{{ route($detailRoute, $item['id']) }}"
-                            wire:navigate
+                            @click="if (! $event.ctrlKey && ! $event.metaKey && ! $event.shiftKey && ! $event.altKey && $event.button === 0) { $event.preventDefault(); $event.stopImmediatePropagation(); $dispatch('open-title', { type: '{{ $type }}', id: {{ (int) $item['id'] }} }) }"
                             class="group/top flex items-end"
                             aria-label="#{{ $rank + 1 }} {{ $item['title'] ?? $item['name'] ?? 'Untitled' }}"
                         >

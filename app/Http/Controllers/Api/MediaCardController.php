@@ -15,7 +15,7 @@ class MediaCardController extends Controller
     public function show(Request $request, Tmdb $tmdb, string $type, int $id): JsonResponse
     {
         $details = $tmdb->get("/{$type}/{$id}", [
-            'append_to_response' => 'videos,credits',
+            'append_to_response' => 'videos,credits,recommendations',
         ]);
 
         $trailerKey = Tmdb::extractTrailerKey($details['videos']['results'] ?? []);
@@ -36,6 +36,19 @@ class MediaCardController extends Controller
             ])
             ->all();
 
+        $moreLikeThis = collect(ApiPayload::rows($details['recommendations']['results'] ?? null))
+            ->filter(fn (array $item): bool => ! empty($item['poster_path']) && isset($item['id']))
+            ->take(9)
+            ->map(fn (array $item): array => [
+                'id' => (int) $item['id'],
+                'type' => ($item['media_type'] ?? $type) === 'tv' ? 'tv' : 'movie',
+                'title' => (string) ($item['title'] ?? $item['name'] ?? ''),
+                'poster' => $tmdb->imageUrl((string) $item['poster_path'], 'w342'),
+                'year' => substr((string) ($item['release_date'] ?? $item['first_air_date'] ?? ''), 0, 4),
+            ])
+            ->values()
+            ->all();
+
         $runtime = $type === 'movie'
             ? ($details['runtime'] ?? null)
             : ($details['episode_run_time'][0] ?? $details['last_episode_to_air']['runtime'] ?? null);
@@ -47,6 +60,7 @@ class MediaCardController extends Controller
             'type' => $type,
             'title' => $details['title'] ?? $details['name'] ?? '',
             'tagline' => $details['tagline'] ?? '',
+            'year' => substr((string) ($details['release_date'] ?? $details['first_air_date'] ?? ''), 0, 4),
             'overview' => $details['overview'] ?? '',
             'rating' => round($details['vote_average'] ?? 0, 1),
             'vote_count' => $details['vote_count'] ?? 0,
@@ -61,6 +75,9 @@ class MediaCardController extends Controller
             'seasons' => $type === 'tv' ? ($details['number_of_seasons'] ?? null) : null,
             'is_favorited' => $user?->hasFavorited($id, $type) ?? false,
             'is_watchlisted' => $user?->hasOnWatchlist($id, $type) ?? false,
+            'more_like_this' => $moreLikeThis,
+            'watch_url' => route('watch', ['type' => $type, 'tmdbId' => $id]),
+            'detail_url' => route($type === 'tv' ? 'tv.detail' : 'movies.detail', $id),
         ]);
     }
 

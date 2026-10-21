@@ -110,8 +110,16 @@
     @mouseleave="leave()"
     @touchstart.passive="enter()"
 >
-    {{-- Base card --}}
-    <a href="{{ $href }}" class="block" wire:navigate>
+    {{-- Base card: opens the details modal; Continue Watching goes straight to the player --}}
+    <a
+        href="{{ $href }}"
+        class="block"
+        @if($variant === 'watch')
+            wire:navigate
+        @else
+            @click="if (! $event.ctrlKey && ! $event.metaKey && ! $event.shiftKey && ! $event.altKey && $event.button === 0) { $event.preventDefault(); $event.stopImmediatePropagation(); $dispatch('open-title', { type: '{{ $mediaType }}', id: {{ (int) $tmdbId }} }) }"
+        @endif
+    >
         <div class="relative aspect-[2/3] overflow-hidden rounded-xl border border-white/[0.06] bg-zinc-800/50">
             @if($posterPath)
                 <img
@@ -256,7 +264,7 @@
         <div class="p-3.5">
             {{-- Title + rating row --}}
             <div class="flex items-start justify-between gap-2">
-                <a href="{{ $href }}" wire:navigate class="min-w-0 flex-1 transition hover:text-white">
+                <a href="{{ $href }}" @click="if (! $event.ctrlKey && ! $event.metaKey && ! $event.shiftKey && ! $event.altKey && $event.button === 0) { $event.preventDefault(); $dispatch('open-title', { type: '{{ $mediaType }}', id: {{ (int) $tmdbId }} }) }" class="min-w-0 flex-1 transition hover:text-white">
                     <h3 class="truncate text-sm font-semibold text-white">{{ $itemTitle }}</h3>
                 </a>
                 <template x-if="detail">

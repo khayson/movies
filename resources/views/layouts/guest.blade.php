@@ -292,5 +292,7 @@
                 document.querySelectorAll('.reveal:not(.revealed)').forEach(el => obs.observe(el));
             });
         </script>
+
+        @include('partials.title-modal')
     </body>
 </html>

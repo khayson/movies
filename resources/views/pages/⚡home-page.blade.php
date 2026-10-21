@@ -312,7 +312,7 @@ class extends Component
                             <span class="hidden sm:inline">Play</span>
                         </a>
                         <a :href="cur.detailUrl"
-                           wire:navigate
+                           @click="if (! $event.ctrlKey && ! $event.metaKey && ! $event.shiftKey && ! $event.altKey && $event.button === 0) { $event.preventDefault(); $event.stopImmediatePropagation(); $dispatch('open-title', { type: cur.type, id: cur.id }) }"
                            class="inline-flex items-center gap-2 rounded-md bg-zinc-500/40 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-zinc-500/30 sm:px-6 sm:py-3">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
                             <span class="hidden sm:inline">More Info</span>

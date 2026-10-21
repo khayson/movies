@@ -34,6 +34,13 @@ beforeEach(function () {
                     ['key' => 'SUXWAEX2jlg', 'site' => 'YouTube', 'type' => 'Trailer'],
                 ],
             ],
+            'recommendations' => [
+                'results' => [
+                    ['id' => 807, 'title' => 'Se7en', 'poster_path' => '/se7en.jpg', 'release_date' => '1995-09-22', 'media_type' => 'movie'],
+                    ['id' => 1399, 'name' => 'Game of Thrones', 'poster_path' => '/got.jpg', 'first_air_date' => '2011-04-17', 'media_type' => 'tv'],
+                    ['id' => 1, 'title' => 'No Poster', 'poster_path' => null],
+                ],
+            ],
         ]),
     ]);
 });
@@ -50,6 +57,53 @@ test('media card api returns movie details', function () {
             'is_favorited', 'is_watchlisted',
         ]);
 });
+
+test('media card api returns links and more like this for the details modal', function () {
+    $this->getJson(route('api.media.show', ['type' => 'movie', 'id' => 550]))
+        ->assertOk()
+        ->assertJsonPath('year', '1999')
+        ->assertJsonPath('watch_url', route('watch', ['type' => 'movie', 'tmdbId' => 550]))
+        ->assertJsonPath('detail_url', route('movies.detail', 550))
+        ->assertJsonCount(2, 'more_like_this')
+        ->assertJsonPath('more_like_this.0.title', 'Se7en')
+        ->assertJsonPath('more_like_this.1', [
+            'id' => 1399,
+            'type' => 'tv',
+            'title' => 'Game of Thrones',
+            'poster' => 'https://image.tmdb.org/t/p/w342/got.jpg',
+            'year' => '2011',
+        ]);
+});
+
+test('pages include the details modal and cards open it instead of navigating', function () {
+    $this->get(route('movies.index'))
+        ->assertOk()
+        ->assertSee('role="dialog"', false)
+        ->assertSee('@open-title.window', false);
+
+    $html = view('partials.media-card', ['item' => ['id' => 550, 'title' => 'Fight Club', 'poster_path' => '/fc.jpg'], 'type' => 'movie'])->render();
+
+    expect(baseCardLink($html))->toContain("\$dispatch('open-title', { type: 'movie', id: 550 })")
+        ->and(baseCardLink($html))->not->toContain('wire:navigate');
+});
+
+test('continue watching cards still go straight to the player', function () {
+    $user = User::factory()->create();
+    $user->watchHistory()->create(['tmdb_id' => 550, 'media_type' => 'movie', 'title' => 'Fight Club', 'poster_path' => '/fc.jpg']);
+
+    $link = baseCardLink(view('partials.media-card', ['item' => $user->watchHistory()->first(), 'variant' => 'watch'])->render());
+
+    expect($link)->toContain('href="'.route('watch', ['type' => 'movie', 'tmdbId' => 550]).'"')
+        ->and($link)->toContain('wire:navigate')
+        ->and($link)->not->toContain('open-title');
+});
+
+function baseCardLink(string $html): string
+{
+    preg_match('/<a\s[^>]*class="block"[^>]*>/s', $html, $matches);
+
+    return $matches[0] ?? '';
+}
 
 test('media card api returns user watchlist and favorite status', function () {
     $user = User::factory()->create();
