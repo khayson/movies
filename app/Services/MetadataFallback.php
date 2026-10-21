@@ -18,8 +18,13 @@ class MetadataFallback
             return $this->tvMaze->showByTmdbId((int) $matches[1]);
         }
 
+        $isUnfilteredTvDiscover = $endpoint === '/discover/tv'
+            && ! isset($params['with_genres'])
+            && ! isset($params['with_origin_country']);
+
         if (preg_match('#^/trending/(tv|all)/#', $endpoint) === 1
-            || preg_match('#^/tv/(popular|top_rated)$#', $endpoint) === 1) {
+            || preg_match('#^/tv/(popular|top_rated)$#', $endpoint) === 1
+            || $isUnfilteredTvDiscover) {
             return ['results' => $this->tvMaze->catalog(24)];
         }
 

@@ -154,7 +154,7 @@ test('tmdb animation discover uses the animation genre', function () {
         ]),
     ]);
 
-    $result = app(Tmdb::class)->animation('tv');
+    $result = app(Tmdb::class)->anime('tv');
 
     expect($result['results'][0]['name'])->toBe('Animated Show');
 

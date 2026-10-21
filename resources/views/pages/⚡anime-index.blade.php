@@ -53,17 +53,20 @@ class extends Component
     public function with(AnimeDb $animeDb, Tmdb $tmdb): array
     {
         View::share('ogTitle', 'Anime — '.config('app.name'));
-        View::share('ogDescription', 'Browse ranked anime with synopses, genres, and MyAnimeList data on '.config('app.name').'.');
+        View::share('ogDescription', 'New and currently airing anime, plus the full MyAnimeList catalogue, on '.config('app.name').'.');
 
-        $result = $animeDb->browse([
-            'page' => $this->page,
-            'size' => 24,
-            'search' => $this->search !== '' ? $this->search : null,
-            'genres' => $this->genre !== '' ? $this->genre : null,
-            'types' => $this->type !== '' ? $this->type : null,
-            'sortBy' => $this->search === '' ? 'ranking' : null,
-            'sortOrder' => $this->search === '' ? 'asc' : null,
-        ]);
+        $filtering = $this->search !== '' || $this->genre !== '' || $this->type !== '';
+        $result = $filtering
+            ? $animeDb->browse([
+                'page' => $this->page,
+                'size' => 24,
+                'search' => $this->search !== '' ? $this->search : null,
+                'genres' => $this->genre !== '' ? $this->genre : null,
+                'types' => $this->type !== '' ? $this->type : null,
+                'sortBy' => $this->search === '' ? 'ranking' : null,
+                'sortOrder' => $this->search === '' ? 'asc' : null,
+            ])
+            : ['data' => [], 'meta' => []];
 
         $items = $result['data'];
         $meta = $result['meta'];
@@ -71,7 +74,7 @@ class extends Component
 
         if ($items === []) {
             $source = 'tmdb';
-            $tmdbPage = $tmdb->animation('tv', $this->page);
+            $tmdbPage = $tmdb->anime('tv', $this->page);
             $items = array_map(function (array $item) use ($tmdb): array {
                 return [
                     'id' => (string) $item['id'],
@@ -159,7 +162,7 @@ class extends Component
                 <span class="bg-gradient-to-r from-fuchsia-400 to-amber-400 bg-clip-text text-transparent">Anime</span>
             </h1>
             <p class="mt-2 max-w-xl text-sm text-zinc-400">
-                Ranked series, films, and OVAs — watch from TMDB matches when available.
+                New and currently airing anime. Search or filter to explore the full MyAnimeList catalogue.
             </p>
             @if($hero)
                 <div class="mt-6 flex flex-wrap items-center gap-3">

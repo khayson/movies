@@ -1,6 +1,5 @@
 <?php
 
-use App\Services\AnimeDb;
 use App\Services\PersonalizedRows;
 use App\Services\RottenTomatoes;
 use App\Services\TopTen;
@@ -14,7 +13,7 @@ new
 #[Title('StreamVault — Free Movie & TV Streaming')]
 class extends Component
 {
-    public function with(Tmdb $tmdb, RottenTomatoes $rottenTomatoes, AnimeDb $animeDb, PersonalizedRows $personalizedRows, TopTen $topTen): array
+    public function with(Tmdb $tmdb, RottenTomatoes $rottenTomatoes, PersonalizedRows $personalizedRows, TopTen $topTen): array
     {
         $continueWatching = auth()->check()
             ? auth()->user()->watchHistory()->visible()->limit(10)->get()
@@ -40,16 +39,15 @@ class extends Component
         $rtNetflixTop = $rottenTomatoes->toTmdbCards($rottenTomatoes->netflixTopTv(24), $tmdb, 12);
         $rtComingSoon = $rottenTomatoes->toTmdbCards($rottenTomatoes->comingSoon(24), $tmdb, 12);
         $rtQueryMovies = $rottenTomatoes->toTmdbCards($rottenTomatoes->queryMovies(1, null, 24), $tmdb, 12);
-        $malAnime = $animeDb->toTmdbCards($animeDb->topRanked(24), $tmdb, 12);
         $tmdbAnimeTv = array_map(
             fn (array $item): array => array_merge($item, ['media_type' => 'tv']),
-            $tmdb->animation('tv')['results'] ?? []
+            $tmdb->anime('tv')['results'] ?? []
         );
         $tmdbAnimeMovies = array_map(
             fn (array $item): array => array_merge($item, ['media_type' => 'movie']),
-            $tmdb->animation('movie')['results'] ?? []
+            $tmdb->anime('movie')['results'] ?? []
         );
-        $topAnime = $malAnime !== [] ? $malAnime : array_slice($tmdbAnimeTv, 0, 12);
+        $topAnime = array_slice($tmdbAnimeTv, 0, 12);
         $featuredAnimeItem = $topAnime[0] ?? null;
         $featuredAnime = null;
 
@@ -540,7 +538,7 @@ class extends Component
                 @endif
 
                 @include('partials.media-row', [
-                    'title' => 'Top Anime',
+                    'title' => 'New & Airing Anime',
                     'items' => $topAnime,
                     'type' => 'tv',
                     'style' => 'scroll',

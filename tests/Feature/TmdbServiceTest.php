@@ -7,7 +7,7 @@ use Illuminate\Support\Facades\Http;
 
 test('tmdb service fetches popular movies', function () {
     Http::fake([
-        'api.themoviedb.org/3/movie/popular*' => Http::response([
+        'api.themoviedb.org/3/discover/movie*' => Http::response([
             'results' => [
                 ['id' => 1, 'title' => 'Test Movie'],
             ],
@@ -93,7 +93,7 @@ test('tmdb service retries then recovers from connection failures', function () 
 test('tmdb service fails over to a backup tmdb host', function () {
     Http::fake([
         'api.themoviedb.org/*' => Http::failedConnection('Connection was reset'),
-        'api.tmdb.org/3/movie/popular*' => Http::response([
+        'api.tmdb.org/3/discover/movie*' => Http::response([
             'results' => [
                 ['id' => 2, 'title' => 'Fallback Host Movie'],
             ],

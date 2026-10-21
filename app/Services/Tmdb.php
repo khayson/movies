@@ -16,6 +16,9 @@ class Tmdb
      */
     public const ANIMATION_GENRE_ID = 16;
 
+    /** Titles count as recent when released (movies) or first aired (shows) within this many years. */
+    private const RECENT_YEARS = 2;
+
     private bool $tmdbUnavailable = false;
 
     public function __construct(private MetadataFallback $fallback) {}
@@ -222,7 +225,7 @@ class Tmdb
      */
     public function popular(string $type = 'movie', int $page = 1): array
     {
-        return $this->get("/{$type}/popular", ['page' => $page]);
+        return $this->discoverRecent($type, ['sort_by' => 'popularity.desc'], $page);
     }
 
     /**
@@ -230,7 +233,10 @@ class Tmdb
      */
     public function topRated(string $type = 'movie', int $page = 1): array
     {
-        return $this->get("/{$type}/top_rated", ['page' => $page]);
+        return $this->discoverRecent($type, [
+            'sort_by' => 'vote_average.desc',
+            'vote_count.gte' => $type === 'tv' ? 100 : 200,
+        ], $page);
     }
 
     /**
@@ -406,9 +412,13 @@ class Tmdb
     /**
      * @return array<string, mixed>
      */
-    public function animation(string $type = 'tv', int $page = 1): array
+    public function anime(string $type = 'tv', int $page = 1): array
     {
-        return $this->discoverByGenre($type, self::ANIMATION_GENRE_ID, $page);
+        return $this->discoverRecent($type, [
+            'with_genres' => self::ANIMATION_GENRE_ID,
+            'with_origin_country' => 'JP',
+            'sort_by' => 'popularity.desc',
+        ], $page);
     }
 
     /**
@@ -416,11 +426,10 @@ class Tmdb
      */
     public function discoverByGenre(string $type, int $genreId, int $page = 1): array
     {
-        return $this->get("/discover/{$type}", [
+        return $this->discoverRecent($type, [
             'with_genres' => $genreId,
             'sort_by' => 'popularity.desc',
-            'page' => $page,
-        ]);
+        ], $page);
     }
 
     /**
@@ -430,11 +439,35 @@ class Tmdb
      */
     public function discoverByOriginCountry(string $type, string $countryCode, int $page = 1): array
     {
-        return $this->get("/discover/{$type}", [
+        return $this->discoverRecent($type, [
             'with_origin_country' => $countryCode,
             'sort_by' => 'popularity.desc',
-            'page' => $page,
-        ]);
+        ], $page);
+    }
+
+    /**
+     * Discover titles released (movies) or first aired (shows) recently, so lists favour new
+     * content over all-time classics and long-running series. Small catalogues with nothing recent fall back
+     * to all-time results rather than showing an empty page.
+     *
+     * @param  array<string, mixed>  $params
+     * @return array<string, mixed>
+     */
+    private function discoverRecent(string $type, array $params, int $page): array
+    {
+        $dateField = $type === 'tv' ? 'first_air_date' : 'primary_release_date';
+        $window = [
+            "{$dateField}.gte" => now()->subYears(self::RECENT_YEARS)->toDateString(),
+            "{$dateField}.lte" => now()->toDateString(),
+        ];
+
+        $recent = $this->get("/discover/{$type}", [...$params, ...$window, 'page' => $page]);
+
+        if (($recent['results'] ?? []) !== [] || $page > 1) {
+            return $recent;
+        }
+
+        return $this->get("/discover/{$type}", [...$params, 'page' => $page]);
     }
 
     /**
