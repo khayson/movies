@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToProfile;
 use Database\Factories\EpisodeWatchFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,11 +20,11 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
-#[Fillable(['user_id', 'tmdb_id', 'season_number', 'episode_number', 'watched_at'])]
+#[Fillable(['user_id', 'profile_id', 'tmdb_id', 'season_number', 'episode_number', 'watched_at'])]
 class EpisodeWatch extends Model
 {
     /** @use HasFactory<EpisodeWatchFactory> */
-    use HasFactory;
+    use BelongsToProfile, HasFactory;
 
     /**
      * @return array<string, string>

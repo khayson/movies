@@ -17,6 +17,12 @@ class LoginResponse implements LoginResponseContract
      */
     public function toResponse($request)
     {
+        session()->forget('active_profile_id');
+
+        if (! $request->wantsJson() && $request->user()->profiles()->count() > 1) {
+            return redirect()->route('profiles.index');
+        }
+
         $redirectUrl = redirect()->intended(Fortify::redirects('login'))->getTargetUrl();
 
         session()->flash('toast', [

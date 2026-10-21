@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\AffiliateClickController;
 use App\Http\Controllers\Api\MediaCardController;
 use App\Http\Controllers\Api\SearchController;
 use App\Http\Controllers\SharePosterController;
+use App\Http\Controllers\SwitchProfileController;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
@@ -88,6 +89,11 @@ Route::get('/cron/{token}', function (string $token) {
         'output' => $output,
     ]);
 })->name('cron.run');
+
+Route::middleware('auth')->group(function () {
+    Route::livewire('/profiles', 'pages::profiles')->name('profiles.index');
+    Route::post('/profiles/{profile}/switch', SwitchProfileController::class)->name('profiles.switch');
+});
 
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::livewire('dashboard', 'pages::dashboard')->name('dashboard');

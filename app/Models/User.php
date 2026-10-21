@@ -41,6 +41,8 @@ class User extends Authenticatable implements PasskeyUser
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, PasskeyAuthenticatable, TwoFactorAuthenticatable;
 
+    private ?Profile $resolvedActiveProfile = null;
+
     /**
      * Get the attributes that should be cast.
      *
@@ -66,7 +68,7 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function favorites(): HasMany
     {
-        return $this->hasMany(Favorite::class);
+        return $this->scopedToActiveProfile($this->hasMany(Favorite::class));
     }
 
     /**
@@ -74,7 +76,7 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function watchHistory(): HasMany
     {
-        return $this->hasMany(WatchHistory::class)->latest('updated_at');
+        return $this->scopedToActiveProfile($this->hasMany(WatchHistory::class)->latest('updated_at'));
     }
 
     /**
@@ -82,7 +84,57 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function watchlist(): HasMany
     {
-        return $this->hasMany(Watchlist::class);
+        return $this->scopedToActiveProfile($this->hasMany(Watchlist::class));
+    }
+
+    /**
+     * @return HasMany<Profile, $this>
+     */
+    public function profiles(): HasMany
+    {
+        return $this->hasMany(Profile::class)->oldest('id');
+    }
+
+    /**
+     * The profile currently watching: the one picked this session, otherwise the
+     * account's first profile (created on demand for brand-new accounts).
+     */
+    public function activeProfile(): Profile
+    {
+        if ($this->resolvedActiveProfile?->user_id === $this->id) {
+            return $this->resolvedActiveProfile;
+        }
+
+        $selectedId = auth()->id() === $this->id ? session('active_profile_id') : null;
+        $profile = is_numeric($selectedId) ? $this->profiles()->whereKey((int) $selectedId)->first() : null;
+
+        return $this->resolvedActiveProfile = $profile
+            ?? $this->profiles()->first()
+            ?? $this->profiles()->create(['name' => Str::limit(Str::words($this->name, 1, ''), 40, '') ?: 'Me']);
+    }
+
+    public function switchProfile(Profile $profile): void
+    {
+        abort_unless($profile->user_id === $this->id, 404);
+
+        session()->put('active_profile_id', $profile->id);
+        $this->resolvedActiveProfile = $profile;
+    }
+
+    /**
+     * Limit viewing data to the active profile. Relations built on a blank model
+     * (withCount, eager loading across users) stay account-wide.
+     *
+     * @template TRelated of \Illuminate\Database\Eloquent\Model
+     *
+     * @param  HasMany<TRelated, $this>  $relation
+     * @return HasMany<TRelated, $this>
+     */
+    private function scopedToActiveProfile(HasMany $relation): HasMany
+    {
+        return $this->exists
+            ? $relation->withAttributes(['profile_id' => $this->activeProfile()->id])
+            : $relation;
     }
 
     /**
@@ -98,7 +150,7 @@ class User extends Authenticatable implements PasskeyUser
      */
     public function episodeWatches(): HasMany
     {
-        return $this->hasMany(EpisodeWatch::class);
+        return $this->scopedToActiveProfile($this->hasMany(EpisodeWatch::class));
     }
 
     /**

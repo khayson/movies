@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToProfile;
 use Database\Factories\WatchHistoryFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -27,11 +28,11 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $last_watched_at
  * @property bool $is_private
  */
-#[Fillable(['user_id', 'tmdb_id', 'media_type', 'title', 'poster_path', 'progress_seconds', 'duration_seconds', 'season', 'episode', 'last_server', 'cinesrc_server_id', 'device_name', 'last_watched_at', 'is_private'])]
+#[Fillable(['user_id', 'profile_id', 'tmdb_id', 'media_type', 'title', 'poster_path', 'progress_seconds', 'duration_seconds', 'season', 'episode', 'last_server', 'cinesrc_server_id', 'device_name', 'last_watched_at', 'is_private'])]
 class WatchHistory extends Model
 {
     /** @use HasFactory<WatchHistoryFactory> */
-    use HasFactory;
+    use BelongsToProfile, HasFactory;
 
     /**
      * @return BelongsTo<User, $this>

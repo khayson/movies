@@ -7,10 +7,11 @@
         aria-haspopup="menu"
         :aria-expanded="open"
     >
-        <div class="flex size-7 items-center justify-center rounded-md bg-gradient-to-br from-amber-500/80 to-amber-700/80 text-xs font-bold text-white">
-            {{ auth()->user()->initials() }}
+        @php($activeProfile = auth()->user()->activeProfile())
+        <div class="flex size-7 items-center justify-center rounded-md text-xs font-bold text-white {{ $activeProfile->avatarClass() }}">
+            {{ $activeProfile->initial() }}
         </div>
-        <span class="hidden text-sm font-medium text-zinc-300 sm:inline">{{ Str::words(auth()->user()->name, 1, '') }}</span>
+        <span class="hidden text-sm font-medium text-zinc-300 sm:inline">{{ $activeProfile->name }}</span>
         <svg xmlns="http://www.w3.org/2000/svg" class="hidden size-3.5 text-zinc-500 transition sm:block" :class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
         </svg>
@@ -32,6 +33,29 @@
         <div class="border-b border-white/[0.06] px-3 py-2.5">
             <p class="truncate text-sm font-medium text-white">{{ auth()->user()->name }}</p>
             <p class="truncate text-xs text-zinc-500">{{ auth()->user()->email }}</p>
+        </div>
+
+        <div class="border-b border-white/[0.06] py-1" role="group" aria-label="{{ __('Switch profile') }}">
+            @foreach(auth()->user()->profiles as $menuProfile)
+                @continue($menuProfile->id === $activeProfile->id)
+                <form method="POST" action="{{ route('profiles.switch', $menuProfile) }}">
+                    @csrf
+                    <button type="submit" class="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-zinc-300 transition hover:bg-white/[0.05] hover:text-white" role="menuitem">
+                        <span class="flex size-6 items-center justify-center rounded text-[11px] font-bold text-white {{ $menuProfile->avatarClass() }}">{{ $menuProfile->initial() }}</span>
+                        <span class="truncate">{{ $menuProfile->name }}</span>
+                    </button>
+                </form>
+            @endforeach
+            <a
+                href="{{ route('profiles.index') }}"
+                @click="open = false"
+                class="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-zinc-300 transition hover:bg-white/[0.05] hover:text-white"
+                role="menuitem"
+                wire:navigate
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" class="size-4 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" /></svg>
+                {{ __('Manage profiles') }}
+            </a>
         </div>
 
         <div class="py-1">
