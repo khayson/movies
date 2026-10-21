@@ -31,6 +31,8 @@ class extends Component
             ->values()
             ->all();
         $airingToday = $tmdb->airingToday()['results'] ?? [];
+        $topTenMovies = array_slice($tmdb->trending('movie', 'day')['results'] ?? [], 0, 10);
+        $topTenShows = array_slice($tmdb->trending('tv', 'day')['results'] ?? [], 0, 10);
 
         $rtNetflixTop = $rottenTomatoes->toTmdbCards($rottenTomatoes->netflixTopTv(24), $tmdb, 12);
         $rtComingSoon = $rottenTomatoes->toTmdbCards($rottenTomatoes->comingSoon(24), $tmdb, 12);
@@ -138,6 +140,8 @@ class extends Component
             'nowPlaying' => $nowPlaying,
             'upcoming' => $upcoming,
             'airingToday' => $airingToday,
+            'topTenMovies' => $topTenMovies,
+            'topTenShows' => $topTenShows,
             'continueWatching' => $continueWatching,
             'genreMap' => $genreMap,
             'movieGenres' => $movieGenres,
@@ -165,40 +169,66 @@ class extends Component
                 total: {{ count($heroItems) }},
                 timer: null,
                 transitioning: false,
+                playing: false,
+                muted: true,
+                trailerTimer: null,
+                canAutoplay: window.matchMedia('(min-width: 768px)').matches
+                    && ! window.matchMedia('(prefers-reduced-motion: reduce)').matches,
                 init() {
                     this.startTimer();
+                    this.scheduleTrailer();
                 },
                 startTimer() {
                     clearInterval(this.timer);
                     this.timer = setInterval(() => this.next(), 8000);
                 },
-                next() {
+                scheduleTrailer() {
+                    clearTimeout(this.trailerTimer);
+                    this.playing = false;
+                    if (! this.canAutoplay || ! this.cur.trailerKey) return;
+                    this.trailerTimer = setTimeout(() => {
+                        clearInterval(this.timer);
+                        this.playing = true;
+                        this.trailerTimer = setTimeout(() => this.next(), 60000);
+                    }, 3000);
+                },
+                stopTrailer() {
+                    clearTimeout(this.trailerTimer);
+                    this.playing = false;
+                    this.startTimer();
+                },
+                toggleMute() {
+                    this.muted = ! this.muted;
+                    this.$refs.heroTrailer?.contentWindow?.postMessage(
+                        JSON.stringify({ event: 'command', func: this.muted ? 'mute' : 'unMute', args: [] }),
+                        '*'
+                    );
+                },
+                show(index) {
                     this.transitioning = true;
+                    this.playing = false;
+                    this.muted = true;
                     setTimeout(() => {
-                        this.current = (this.current + 1) % this.total;
+                        this.current = index;
                         this.transitioning = false;
+                        this.scheduleTrailer();
                     }, 300);
                     this.startTimer();
                 },
+                next() {
+                    this.show((this.current + 1) % this.total);
+                },
                 prev() {
-                    this.transitioning = true;
-                    setTimeout(() => {
-                        this.current = (this.current - 1 + this.total) % this.total;
-                        this.transitioning = false;
-                    }, 300);
-                    this.startTimer();
+                    this.show((this.current - 1 + this.total) % this.total);
                 },
                 goTo(i) {
                     if (i === this.current) return;
-                    this.transitioning = true;
-                    setTimeout(() => {
-                        this.current = i;
-                        this.transitioning = false;
-                    }, 300);
-                    this.startTimer();
+                    this.show(i);
                 },
                 get cur() { return this.items[this.current]; }
             }"
+            x-intersect:leave="stopTrailer()"
+            x-intersect:enter="playing || scheduleTrailer()"
             class="hero-bleed relative h-[clamp(500px,80vh,800px)] w-full overflow-hidden lg:h-[clamp(564px,calc(80vh_+_4rem),864px)]"
         >
             {{-- Backdrop images --}}
@@ -218,6 +248,20 @@ class extends Component
                     @endif
                 </div>
             @endforeach
+
+            {{-- Trailer: replaces the backdrop after a short pause, like a Netflix billboard --}}
+            <template x-if="playing && cur.trailerKey">
+                <div class="pointer-events-none absolute inset-0 overflow-hidden">
+                    <iframe
+                        x-ref="heroTrailer"
+                        :src="`https://www.youtube-nocookie.com/embed/${cur.trailerKey}?autoplay=1&mute=1&controls=0&modestbranding=1&rel=0&playsinline=1&iv_load_policy=3&disablekb=1&enablejsapi=1`"
+                        :title="cur.title + ' trailer'"
+                        tabindex="-1"
+                        allow="autoplay; encrypted-media"
+                        class="absolute left-1/2 top-1/2 h-[56.25vw] min-h-full w-[177.78vh] min-w-full -translate-x-1/2 -translate-y-1/2 scale-125"
+                    ></iframe>
+                </div>
+            </template>
 
             {{-- Gradients --}}
             <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-zinc-950/10"></div>
@@ -260,16 +304,28 @@ class extends Component
                     {{-- Buttons --}}
                     <div class="flex items-center gap-3">
                         <a :href="cur.watchUrl"
-                           class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-600/25 transition hover:bg-red-500 sm:px-7 sm:py-3">
+                           class="inline-flex items-center gap-2 rounded-md bg-white px-5 py-2.5 text-sm font-bold text-black shadow-lg transition hover:bg-white/80 sm:px-7 sm:py-3">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                            <span class="hidden sm:inline">WATCH</span>
+                            <span class="hidden sm:inline">Play</span>
                         </a>
                         <a :href="cur.detailUrl"
                            wire:navigate
-                           class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/10 sm:px-6 sm:py-3">
+                           class="inline-flex items-center gap-2 rounded-md bg-zinc-500/40 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-zinc-500/30 sm:px-6 sm:py-3">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
-                            <span class="hidden sm:inline">MORE INFO</span>
+                            <span class="hidden sm:inline">More Info</span>
                         </a>
+                        <button
+                            type="button"
+                            x-show="playing"
+                            x-transition.opacity
+                            @click="toggleMute()"
+                            :aria-label="muted ? 'Unmute trailer' : 'Mute trailer'"
+                            class="ml-auto inline-flex size-10 items-center justify-center rounded-full border border-white/40 bg-black/30 text-white transition hover:border-white hover:bg-black/50"
+                            style="display: none;"
+                        >
+                            <svg x-show="muted" xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 9.75 19.5 12m0 0 2.25 2.25M19.5 12l2.25-2.25M19.5 12l-2.25 2.25m-10.5-6 4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
+                            <svg x-show="! muted" xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 0 1 0 12.728M16.463 8.288a5.25 5.25 0 0 1 0 7.424M6.75 8.25l4.72-4.72a.75.75 0 0 1 1.28.53v15.88a.75.75 0 0 1-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.009 9.009 0 0 1 2.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75Z" /></svg>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -431,6 +487,10 @@ class extends Component
                 </div>
             </div>
         @endif
+
+        {{-- Top 10 --}}
+        @include('partials.top-ten-row', ['title' => 'Top 10 Movies Today', 'items' => $topTenMovies, 'type' => 'movie'])
+        @include('partials.top-ten-row', ['title' => 'Top 10 Shows Today', 'items' => $topTenShows, 'type' => 'tv'])
 
         {{-- Anime hub --}}
         @if(count($topAnime) > 0 || $featuredAnime)

@@ -46,20 +46,28 @@
         detail: null,
         hoverTimer: null,
         leaveTimer: null,
+        trailerTimer: null,
         trailerPlaying: false,
         enter() {
             clearTimeout(this.leaveTimer);
-            this.hoverTimer = setTimeout(() => {
+            this.hoverTimer = setTimeout(async () => {
                 this.hover = true;
-                if (!this.loaded && !this.loading) this.fetchDetail();
+                if (!this.loaded && !this.loading) await this.fetchDetail();
+                this.autoplayTrailer();
             }, 400);
         },
         leave() {
             clearTimeout(this.hoverTimer);
+            clearTimeout(this.trailerTimer);
             this.leaveTimer = setTimeout(() => {
                 this.hover = false;
                 this.trailerPlaying = false;
             }, 200);
+        },
+        autoplayTrailer() {
+            if (!this.detail?.trailer_key || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+            clearTimeout(this.trailerTimer);
+            this.trailerTimer = setTimeout(() => { if (this.hover) this.trailerPlaying = true; }, 1000);
         },
         async fetchDetail() {
             this.loading = true;
