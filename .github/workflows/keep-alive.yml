@@ -1,0 +1,38 @@
+name: keep-alive
+
+# Pings the app's /up health route so the Render free instance never hits its
+# 15-minute idle spin-down. /up has no session or database middleware, so the
+# ping does not wake the Neon database or use its compute hours.
+# Set the repository variable KEEP_ALIVE_URL to the app's base URL
+# (Settings → Secrets and variables → Actions → Variables).
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: keep-alive
+  cancel-in-progress: true
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+
+    steps:
+      - name: Ping health endpoint
+        env:
+          BASE_URL: ${{ vars.KEEP_ALIVE_URL }}
+        run: |
+          if [ -z "$BASE_URL" ]; then
+            echo "::notice::KEEP_ALIVE_URL is not set; skipping ping."
+            exit 0
+          fi
+
+          curl --fail --silent --show-error --output /dev/null \
+            --write-out 'HTTP %{http_code} in %{time_total}s\n' \
+            --max-time 60 --retry 3 --retry-delay 15 --retry-all-errors \
+            "${BASE_URL%/}/up"
