@@ -17,7 +17,7 @@ class StreakService
             ->where('updated_at', '>=', now()->subDays($lookbackDays))
             ->selectRaw('DATE(updated_at) as watch_date')
             ->groupBy('watch_date')
-            ->orderBy('watch_date')
+            ->reorder('watch_date')
             ->pluck('watch_date')
             ->map(fn (string $date) => Carbon::parse($date)->format('Y-m-d'))
             ->values()

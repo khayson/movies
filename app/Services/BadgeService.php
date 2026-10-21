@@ -26,20 +26,16 @@ class BadgeService
 
         $this->awardIf($user, 'early_adopter', $user->created_at?->lt(now()->subMonths(6)) ?? false);
 
-        $hourExpr = match (config('database.default')) {
-            'sqlite' => "cast(strftime('%H', created_at) as integer)",
-            default => 'HOUR(created_at)',
-        };
         $hasNightWatch = $user->watchHistory()
             ->visible()
-            ->whereRaw("$hourExpr >= 0 AND $hourExpr < 4")
+            ->whereTime('created_at', '<', '04:00:00')
             ->exists();
         $this->awardIf($user, 'night_owl', $hasNightWatch);
 
         $completedSeason = $user->episodeWatches()
-            ->selectRaw('tmdb_id, season_number, COUNT(*) as ep_count')
+            ->select(['tmdb_id', 'season_number'])
             ->groupBy('tmdb_id', 'season_number')
-            ->havingRaw('ep_count >= 8')
+            ->havingRaw('COUNT(*) >= 8')
             ->exists();
         $this->awardIf($user, 'season_finisher', $completedSeason);
     }
