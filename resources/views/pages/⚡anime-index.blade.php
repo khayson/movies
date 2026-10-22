@@ -149,79 +149,42 @@ class extends Component
 ?>
 
 <div>
-    <div class="relative overflow-hidden border-b border-white/[0.06]">
-        @if($heroBackdrop)
-            <div class="absolute inset-0">
-                <img src="{{ $heroBackdrop }}" alt="" class="h-full w-full object-cover opacity-25">
-            </div>
-        @endif
-        <div class="absolute inset-0 bg-gradient-to-b from-fuchsia-950/40 via-zinc-950/80 to-zinc-950"></div>
-        <div class="relative mx-auto max-w-7xl px-4 pb-8 pt-12 sm:px-6 lg:px-8">
-            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-fuchsia-400/80">Anime Hub</p>
-            <h1 class="mt-2 text-4xl font-bold tracking-tight md:text-5xl">
-                <span class="bg-gradient-to-r from-fuchsia-400 to-amber-400 bg-clip-text text-transparent">Anime</span>
-            </h1>
-            <p class="mt-2 max-w-xl text-sm text-zinc-400">
-                New and currently airing anime. Search or filter to explore the full MyAnimeList catalogue.
-            </p>
-            @if($hero)
-                <div class="mt-6 flex flex-wrap items-center gap-3">
-                    <span class="text-sm text-zinc-300">Spotlight: <span class="font-semibold text-white">{{ $hero['title'] }}</span></span>
-                    @php
-                        $heroMatch = $tmdbByAnimeId[$hero['id'] ?? ''] ?? null;
-                        $heroType = $heroMatch['media_type'] ?? ($hero['media_type'] ?? 'tv');
-                        $heroHref = $heroMatch
-                            ? route($heroType === 'tv' ? 'tv.detail' : 'movies.detail', $heroMatch['id'] ?? $hero['tmdb_id'] ?? $hero['id'])
-                            : route('search', ['q' => $hero['title']]);
-                    @endphp
-                    <a href="{{ $heroHref }}" wire:navigate class="rounded-lg bg-fuchsia-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-fuchsia-500">
-                        Open title
-                    </a>
-                </div>
-            @endif
+    <x-page-header eyebrow="Browse" title="Anime" subtitle="New and currently airing anime. Search or filter to explore the full MyAnimeList catalogue." :backdrop="$heroBackdrop">
+        <div class="flex flex-col gap-3 sm:flex-row">
+            <label class="relative min-w-0 flex-1">
+                <span class="sr-only">Search anime</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-zinc-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+                <input type="search" wire:model.live.debounce.400ms="search" placeholder="Search the full anime catalogue…"
+                       class="w-full rounded-full border border-white/[0.08] bg-white/[0.06] py-2.5 pl-10 pr-4 text-sm text-white placeholder:text-zinc-500 focus:border-amber-400/50 focus:outline-none focus:ring-1 focus:ring-amber-400/40">
+            </label>
+            <label>
+                <span class="sr-only">Type</span>
+                <select wire:model.live="type" class="w-full rounded-full border border-white/[0.08] bg-zinc-900 px-4 py-2.5 text-sm text-white focus:border-amber-400/50 focus:outline-none sm:w-40">
+                    <option value="">All types</option>
+                    @foreach(['TV', 'Movie', 'OVA', 'ONA', 'Special'] as $typeOption)
+                        <option value="{{ $typeOption }}">{{ $typeOption }}</option>
+                    @endforeach
+                </select>
+            </label>
         </div>
-    </div>
 
-    <div class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div class="mb-6 flex flex-wrap gap-2">
-            <button wire:click="$set('genre', '')" class="rounded-full px-3.5 py-1.5 text-xs font-semibold transition {{ $genre === '' ? 'bg-fuchsia-600 text-white' : 'bg-white/[0.04] text-zinc-400 hover:bg-white/[0.08] hover:text-white' }}">
-                All
-            </button>
+        <div class="scrollbar-hide -mx-4 mt-4 flex gap-2 overflow-x-auto px-4">
+            <x-tab-button :active="$genre === ''" wire:click="$set('genre', '')">All</x-tab-button>
             @foreach(array_slice($genres, 0, 12) as $genreOption)
-                <button wire:click="$set('genre', '{{ $genreOption }}')" class="rounded-full px-3.5 py-1.5 text-xs font-semibold transition {{ $genre === $genreOption ? 'bg-fuchsia-600 text-white' : 'bg-white/[0.04] text-zinc-400 hover:bg-white/[0.08] hover:text-white' }}">
-                    {{ $genreOption }}
-                </button>
+                <x-tab-button :active="$genre === $genreOption" wire:click="$set('genre', '{{ $genreOption }}')">{{ $genreOption }}</x-tab-button>
             @endforeach
         </div>
+    </x-page-header>
 
-        <div class="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div class="flex flex-1 flex-col gap-3 sm:flex-row">
-                <div class="min-w-0 flex-1">
-                    <label class="mb-1.5 block text-xs font-medium text-zinc-500">Search</label>
-                    <input
-                        type="search"
-                        wire:model.live.debounce.400ms="search"
-                        placeholder="Search titles…"
-                        class="w-full rounded-xl border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:border-fuchsia-500/40 focus:outline-none focus:ring-1 focus:ring-fuchsia-500/30"
-                    >
-                </div>
-                <div>
-                    <label class="mb-1.5 block text-xs font-medium text-zinc-500">Type</label>
-                    <select
-                        wire:model.live="type"
-                        class="w-full rounded-xl border border-white/[0.08] bg-zinc-900 px-3 py-2.5 text-sm text-white focus:border-fuchsia-500/40 focus:outline-none sm:w-36"
-                    >
-                        <option value="">All types</option>
-                        @foreach(['TV', 'Movie', 'OVA', 'ONA', 'Special'] as $typeOption)
-                            <option value="{{ $typeOption }}">{{ $typeOption }}</option>
-                        @endforeach
-                    </select>
-                </div>
-            </div>
-            <p class="text-xs text-zinc-600">{{ number_format($totalData) }} titles · Page {{ $page }} of {{ $totalPages }}</p>
-        </div>
+    <div class="mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:px-8">
+        @if($totalData > 0 && ($search !== '' || $genre !== '' || $type !== ''))
+            <p class="mb-5 text-sm text-zinc-500">{{ number_format($totalData) }} titles</p>
+        @endif
 
-            <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" wire:loading.class="opacity-50">
+        @if(empty($items))
+            <p class="py-20 text-center text-zinc-500">No anime found for these filters.</p>
+        @else
+            <div class="grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6" wire:loading.class="opacity-50">
                 @foreach($items as $anime)
                     @php
                         $tmdbMatch = $tmdbByAnimeId[$anime['id'] ?? ''] ?? null;
@@ -230,20 +193,22 @@ class extends Component
                             ? route($mediaType === 'tv' ? 'tv.detail' : 'movies.detail', $tmdbMatch['id'])
                             : route('search', ['q' => $anime['title']]);
                     @endphp
-                    <a href="{{ $href }}" wire:navigate class="group block">
-                        <div class="relative aspect-[2/3] overflow-hidden rounded-xl bg-zinc-800 ring-1 ring-white/[0.06] transition group-hover:ring-fuchsia-500/40">
+                    <a href="{{ $href }}"
+                       @if($tmdbMatch)
+                           @click="if (! $event.ctrlKey && ! $event.metaKey && ! $event.shiftKey && ! $event.altKey && $event.button === 0) { $event.preventDefault(); $dispatch('open-title', { type: '{{ $mediaType }}', id: {{ (int) $tmdbMatch['id'] }} }) }"
+                       @else
+                           wire:navigate
+                       @endif
+                       class="group block">
+                        <div class="relative aspect-[2/3] overflow-hidden rounded-xl bg-zinc-800 ring-1 ring-white/[0.06] transition group-hover:ring-amber-400/50">
                             @if(!empty($anime['image']))
                                 <img src="{{ $anime['image'] }}" alt="{{ $anime['title'] }}" class="h-full w-full object-cover transition duration-300 group-hover:scale-105" loading="lazy">
                             @endif
                             @if(($anime['ranking'] ?? null) !== null)
-                                <span class="absolute left-2 top-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-fuchsia-300 backdrop-blur-sm">
-                                    #{{ $anime['ranking'] }}
-                                </span>
+                                <span class="absolute left-2 top-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-bold text-amber-300 backdrop-blur-sm">#{{ $anime['ranking'] }}</span>
                             @endif
                             @if(!empty($anime['type']))
-                                <span class="absolute right-2 top-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-300 backdrop-blur-sm">
-                                    {{ $anime['type'] }}
-                                </span>
+                                <span class="absolute right-2 top-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-300 backdrop-blur-sm">{{ $anime['type'] }}</span>
                             @endif
                         </div>
                         <p class="mt-2 line-clamp-2 text-sm font-medium text-zinc-200 transition group-hover:text-white">{{ $anime['title'] }}</p>
@@ -259,31 +224,8 @@ class extends Component
                     </a>
                 @endforeach
             </div>
+        @endif
 
-            @if(empty($items))
-                <div class="py-20 text-center">
-                    <p class="text-zinc-500">No anime found for these filters.</p>
-                </div>
-            @endif
-
-            @if($totalPages > 1)
-                <div class="mt-10 flex items-center justify-center gap-3">
-                    <button
-                        wire:click="prevPage"
-                        @if($page <= 1) disabled @endif
-                        class="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-zinc-400 transition hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                    >
-                        Previous
-                    </button>
-                    <span class="text-sm tabular-nums text-zinc-500">{{ $page }} / {{ $totalPages }}</span>
-                    <button
-                        wire:click="nextPage"
-                        @if($page >= $totalPages) disabled @endif
-                        class="flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.03] px-4 py-2.5 text-sm font-medium text-zinc-400 transition hover:bg-white/[0.06] hover:text-white disabled:cursor-not-allowed disabled:opacity-30"
-                    >
-                        Next
-                    </button>
-                </div>
-            @endif
+        <x-pager :page="$page" :total-pages="$totalPages" previous="prevPage" />
     </div>
 </div>

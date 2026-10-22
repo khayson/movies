@@ -141,7 +141,7 @@ test('anime index page renders without a rapidapi key', function () {
 
     $this->get(route('anime.index'))
         ->assertOk()
-        ->assertSee('Anime Hub', false)
+        ->assertSee('New and currently airing anime')
         ->assertSee('Demon Slayer', false);
 });
 

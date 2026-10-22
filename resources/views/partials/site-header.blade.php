@@ -21,6 +21,7 @@
             ['route' => 'collections.index', 'label' => 'Collections', 'hint' => 'Curated lists', 'match' => 'collections.*'],
         ],
     ];
+    $primaryActive = collect($primaryNav)->contains(fn (array $nav): bool => request()->routeIs(...(array) $nav['match']));
     $user = auth()->user();
     $showAdult = $user?->canViewAdultContent() ?? false;
     $adultLabel = $user?->adultStealthEnabled() ? __('Private vault') : __('Adult 18+');
@@ -61,7 +62,7 @@
                 @endforeach
 
                 @foreach($navGroups as $group => $links)
-                    @php($groupActive = collect($links)->contains(fn (array $link): bool => request()->routeIs($link['match'])))
+                    @php($groupActive = ! $primaryActive && collect($links)->contains(fn (array $link): bool => request()->routeIs($link['match'])))
                     <div x-data="{ open: false }" class="relative" @click.outside="open = false" @keydown.escape="open = false">
                         <button
                             type="button"
