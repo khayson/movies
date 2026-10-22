@@ -28,10 +28,10 @@
 @endphp
 
 <nav
-    x-data="{ scrolled: false, menuOpen: false }"
+    x-data="{ scrolled: false, menuOpen: false, searchOpen: false }"
     x-init="scrolled = window.scrollY > 8"
     @scroll.window="scrolled = window.scrollY > 8"
-    @keydown.escape.window="menuOpen = false"
+    @keydown.escape.window="menuOpen = false; searchOpen = false"
     :class="scrolled && 'is-scrolled'"
     class="site-nav sticky top-0 z-50"
     aria-label="{{ __('Main') }}"
@@ -109,12 +109,31 @@
         </div>
 
         <div class="flex shrink-0 items-center gap-1.5">
-            <div class="hidden w-64 2xl:block">
-                @include('partials.smart-search', ['compact' => true])
+            <div class="relative" @click.outside="searchOpen = false">
+                <button
+                    type="button"
+                    @click="searchOpen = ! searchOpen; if (searchOpen) $nextTick(() => $refs.searchPanel.querySelector('input')?.focus())"
+                    :aria-expanded="searchOpen"
+                    aria-controls="site-search"
+                    aria-label="{{ __('Search') }}"
+                    class="flex size-10 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/[0.06] hover:text-white"
+                    :class="searchOpen && 'bg-white/[0.08] text-white'"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+                </button>
+                <div
+                    x-ref="searchPanel"
+                    id="site-search"
+                    x-show="searchOpen"
+                    x-cloak
+                    x-transition:enter="transition ease-out duration-150"
+                    x-transition:enter-start="opacity-0 -translate-y-1"
+                    x-transition:enter-end="opacity-100 translate-y-0"
+                    class="fixed inset-x-3 top-[4.25rem] z-50 rounded-2xl border border-white/[0.08] bg-zinc-900/95 p-3 shadow-2xl shadow-black/60 backdrop-blur-xl sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[28rem]"
+                >
+                    @include('partials.smart-search', ['compact' => false, 'fullWidth' => true])
+                </div>
             </div>
-            <a href="{{ route('search') }}" wire:navigate class="flex size-10 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/[0.06] hover:text-white 2xl:hidden" aria-label="{{ __('Search') }}">
-                <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
-            </a>
 
             <livewire:notification-dropdown />
 
