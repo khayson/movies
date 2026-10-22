@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
 
 Route::livewire('/', 'pages::home-page')->name('home');
+Route::livewire('/welcome', 'pages::welcome')->name('welcome');
 Route::livewire('/movies', 'pages::movie-index')->name('movies.index');
 Route::livewire('/movies/{tmdbId}', 'pages::movie-detail')->name('movies.detail');
 Route::livewire('/tv', 'pages::tv-index')->name('tv.index');
