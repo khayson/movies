@@ -17,8 +17,7 @@
 @endphp
 
 <section class="mt-12">
-    <h2 class="mb-6 flex items-center gap-2 text-xl font-bold">
-        <span class="h-5 w-1 rounded-full bg-amber-500"></span>
+    <h2 class="section-title mb-4">
         Ratings & Reviews
     </h2>
 
@@ -147,16 +146,16 @@
     @endif
 
     {{-- Tabbed Reviews --}}
-    <div x-data="{ activeTab: 'all' }">
+    <div x-data="{ activeTab: 'all', showAllTmdb: false }">
         {{-- Tab buttons --}}
         <div class="mb-6 flex items-center gap-2 border-b border-white/[0.06] pb-3">
             <button @click="activeTab = 'all'"
-                    :class="activeTab === 'all' ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.12] hover:text-white'"
+                    :class="activeTab === 'all' ? 'bg-white text-zinc-950' : 'border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.12] hover:text-white'"
                     class="rounded-xl px-4 py-2 text-sm font-medium transition">
                 All <span class="ml-1 opacity-70">({{ $totalReviews }})</span>
             </button>
             <button @click="activeTab = 'community'"
-                    :class="activeTab === 'community' ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.12] hover:text-white'"
+                    :class="activeTab === 'community' ? 'bg-white text-zinc-950' : 'border border-white/[0.06] bg-white/[0.03] text-zinc-400 hover:border-white/[0.12] hover:text-white'"
                     class="rounded-xl px-4 py-2 text-sm font-medium transition">
                 Community <span class="ml-1 opacity-70">({{ $communityCount }})</span>
             </button>
@@ -296,7 +295,7 @@
                             $createdAt = !empty($tmdbReview['created_at']) ? \Carbon\Carbon::parse($tmdbReview['created_at'])->diffForHumans() : '';
                             $content = $tmdbReview['content'] ?? '';
                         @endphp
-                        <div class="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
+                        <div x-show="showAllTmdb || {{ $loop->index }} < 3" class="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
                             <div class="mb-2 flex items-start justify-between">
                                 <div class="flex items-center gap-2">
                                     @if($avatarPath && !Str::startsWith($avatarPath, '/'))
@@ -334,6 +333,11 @@
                         </div>
                     @endforeach
                 </div>
+                @if($tmdbReviewCount > 3)
+                    <button type="button" x-show="! showAllTmdb" @click="showAllTmdb = true" class="mt-4 w-full rounded-xl bg-white/[0.06] py-3 text-sm font-semibold text-zinc-200 transition hover:bg-white/[0.1]">
+                        Show all {{ $tmdbReviewCount }} TMDB reviews
+                    </button>
+                @endif
             @else
                 <div x-show="activeTab === 'tmdb'" class="rounded-xl border border-white/[0.06] bg-white/[0.03] py-10 text-center">
                     <p class="text-sm text-zinc-500">No TMDB reviews available for this title.</p>

@@ -221,7 +221,7 @@ class extends Component
     <div class="mx-auto -mt-56 max-w-7xl px-4 sm:px-6 lg:px-8">
         <div class="relative flex flex-col gap-8 md:flex-row">
             {{-- Poster --}}
-            <div class="w-48 shrink-0 md:w-64">
+            <div class="w-28 shrink-0 sm:w-48 md:w-64">
                 <div class="relative aspect-[2/3] overflow-hidden rounded-2xl bg-zinc-800 shadow-2xl ring-1 ring-white/[0.08]">
                     @if(!empty($movie['poster_path']))
                         <img src="{{ app(Tmdb::class)->imageUrl($movie['poster_path']) }}" alt="{{ $title }}" class="h-full w-full object-cover">
@@ -299,7 +299,7 @@ class extends Component
                     @if($isUpcoming)
                         @if($trailer)
                             <a href="{{ route('watch', ['type' => 'movie', 'tmdbId' => $this->tmdbId]) }}"
-                               class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-600/25 transition hover:from-amber-500 hover:to-amber-600 hover:shadow-amber-500/30">
+                               class="btn-play py-3">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                 Watch Trailer
                             </a>
@@ -310,7 +310,7 @@ class extends Component
                         </div>
                     @else
                         <a href="{{ route('watch', ['type' => 'movie', 'tmdbId' => $this->tmdbId]) }}"
-                           class="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-amber-600/25 transition hover:from-amber-500 hover:to-amber-600 hover:shadow-amber-500/30">
+                           class="btn-play py-3">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                             Watch Now
                         </a>
@@ -345,8 +345,7 @@ class extends Component
         {{-- Videos section --}}
         @if(count($videos) > 0)
             <section class="mt-12">
-                <h2 class="mb-5 flex items-center gap-2 text-xl font-bold">
-                    <span class="h-5 w-1 rounded-full bg-red-500"></span>
+                <h2 class="section-title mb-4">
                     Trailers & Videos
                     <span class="ml-1 rounded-lg bg-white/[0.04] px-2.5 py-1 text-xs font-medium text-zinc-400">{{ count($videos) }}</span>
                 </h2>
@@ -389,8 +388,7 @@ class extends Component
         {{-- Cast --}}
         @if(count($cast) > 0)
             <section class="mt-12">
-                <h2 class="mb-5 flex items-center gap-2 text-xl font-bold">
-                    <span class="h-5 w-1 rounded-full bg-blue-500"></span>
+                <h2 class="section-title mb-4">
                     Cast
                 </h2>
                 <div class="scrollbar-hide -mx-4 flex gap-4 overflow-x-auto px-4 pb-2">
@@ -409,6 +407,11 @@ class extends Component
             </section>
         @endif
 
+        {{-- Similar --}}
+        @if(count($similar) > 0)
+            @include('partials.media-row', ['title' => 'More Like This', 'items' => $similar, 'type' => 'movie', 'style' => 'scroll'])
+        @endif
+
         @include('partials.reviews-section', [
             'tmdbRating' => $movie['vote_average'] ?? null,
             'tmdbVoteCount' => $movie['vote_count'] ?? 0,
@@ -421,10 +424,6 @@ class extends Component
             'rtConsensus' => $rtScores['consensus'] ?? null,
         ])
 
-        {{-- Similar --}}
-        @if(count($similar) > 0)
-            @include('partials.media-row', ['title' => 'More Like This', 'items' => $similar, 'type' => 'movie', 'style' => 'scroll'])
-        @endif
     </div>
 
     <div class="pb-16"></div>

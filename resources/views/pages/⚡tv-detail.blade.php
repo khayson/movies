@@ -434,7 +434,7 @@ class extends Component
                     @if($isUpcoming)
                         @if($trailer)
                             <a href="{{ route('watch', ['type' => 'tv', 'tmdbId' => $this->tmdbId]) }}"
-                               class="inline-flex h-12 items-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 px-6 text-sm font-semibold text-white shadow-lg shadow-amber-600/25 transition hover:from-amber-500 hover:to-amber-600">
+                               class="btn-play py-3">
                                 <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                                 Watch Trailer
                             </a>
@@ -444,7 +444,7 @@ class extends Component
                         </div>
                     @else
                         <a href="{{ route('watch', ['type' => 'tv', 'tmdbId' => $this->tmdbId, 'season' => $playSeason, 'episode' => $playEpisode]) }}"
-                           class="inline-flex h-12 items-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 px-6 text-sm font-semibold text-white shadow-lg shadow-amber-600/25 transition hover:from-amber-500 hover:to-amber-600">
+                           class="btn-play py-3">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
                             {{ $playLabel }}
                         </a>
@@ -548,7 +548,7 @@ class extends Component
                         @foreach($seasonList as $season)
                             <button
                                 wire:click="selectSeason({{ $season['season_number'] }})"
-                                class="whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition {{ $selectedSeason === $season['season_number'] ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/20' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white' }}"
+                                class="whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition {{ $selectedSeason === $season['season_number'] ? 'bg-white text-zinc-950' : 'bg-white/5 text-zinc-400 hover:bg-white/10 hover:text-white' }}"
                             >
                                 Season {{ $season['season_number'] }}
                                 @if(!empty($season['episode_count']))
