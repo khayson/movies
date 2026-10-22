@@ -36,7 +36,7 @@
     aria-label="{{ __('Main') }}"
 >
     <div class="mx-auto flex h-16 max-w-7xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-        <div class="flex min-w-0 items-center gap-6 xl:gap-8">
+        <div class="flex min-w-0 items-center gap-3 sm:gap-6 xl:gap-8">
             <button
                 type="button"
                 @click="menuOpen = true"
@@ -48,12 +48,12 @@
                 <svg xmlns="http://www.w3.org/2000/svg" class="size-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
             </button>
 
-            @include('partials.site-logo')
+            @include('partials.site-logo', ['compactOnPhones' => true])
 
             <div class="hidden items-center gap-0.5 lg:flex">
                 @foreach($primaryNav as $nav)
                     <a href="{{ route($nav['route']) }}"
-                       class="nav-item rounded-lg px-3 py-2 text-[13px] font-medium transition-colors {{ request()->routeIs(...(array) $nav['match']) ? 'active text-white' : 'text-zinc-400 hover:text-white' }}"
+                       class="nav-item whitespace-nowrap rounded-lg px-2.5 py-2 text-[13px] font-medium transition-colors xl:px-3 {{ request()->routeIs(...(array) $nav['match']) ? 'active text-white' : 'text-zinc-400 hover:text-white' }}"
                        @if(request()->routeIs(...(array) $nav['match'])) aria-current="page" @endif
                        wire:navigate>
                         {{ $nav['label'] }}
@@ -67,7 +67,7 @@
                             type="button"
                             @click="open = ! open"
                             :aria-expanded="open"
-                            class="nav-item inline-flex items-center gap-1 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors {{ $groupActive ? 'active text-white' : 'text-zinc-400 hover:text-white' }}"
+                            class="nav-item inline-flex items-center gap-1 whitespace-nowrap rounded-lg px-2.5 py-2 text-[13px] xl:px-3 font-medium transition-colors {{ $groupActive ? 'active text-white' : 'text-zinc-400 hover:text-white' }}"
                         >
                             {{ $group }}
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5 transition" :class="open && 'rotate-180'" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" /></svg>
@@ -108,7 +108,12 @@
         </div>
 
         <div class="flex shrink-0 items-center gap-1.5">
-            @include('partials.smart-search', ['compact' => true])
+            <div class="hidden w-64 2xl:block">
+                @include('partials.smart-search', ['compact' => true])
+            </div>
+            <a href="{{ route('search') }}" wire:navigate class="flex size-10 items-center justify-center rounded-lg text-zinc-300 transition hover:bg-white/[0.06] hover:text-white 2xl:hidden" aria-label="{{ __('Search') }}">
+                <svg xmlns="http://www.w3.org/2000/svg" class="size-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+            </a>
 
             <livewire:notification-dropdown />
 
@@ -120,7 +125,7 @@
                     <a href="{{ route('login') }}" class="hidden rounded-md px-3.5 py-2 text-sm font-medium text-zinc-300 transition-colors hover:text-white sm:inline-flex" wire:navigate>
                         Sign in
                     </a>
-                    <a href="{{ route('register') }}" class="btn-primary px-4 py-2" wire:navigate>
+                    <a href="{{ route('register') }}" class="btn-primary whitespace-nowrap px-3 py-2 sm:px-4" wire:navigate>
                         Get Started
                     </a>
                 </div>

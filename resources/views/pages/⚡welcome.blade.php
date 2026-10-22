@@ -122,11 +122,11 @@ class extends Component
                 <a href="{{ route('new-releases') }}" class="btn-secondary mt-6" wire:navigate>See new releases</a>
             </div>
             <div class="flex justify-center lg:justify-end" aria-hidden="true">
-                <div class="relative h-72 w-full max-w-md sm:h-80">
+                <div class="relative h-72 w-full max-w-md overflow-hidden sm:h-80 sm:overflow-visible">
                     @foreach($fresh as $index => $poster)
                         <img src="{{ $poster['poster'] }}" alt="" loading="lazy"
                              class="absolute top-1/2 w-32 rounded-lg object-cover shadow-2xl shadow-black/70 ring-1 ring-white/10 sm:w-40"
-                             style="left: {{ 4 + $index * 17 }}%; transform: translateY(-50%) rotate({{ ($index - 2) * 6 }}deg); z-index: {{ 10 - abs($index - 2) }};">
+                             style="left: {{ $index * 15 }}%; transform: translateY(-50%) rotate({{ ($index - 2) * 6 }}deg); z-index: {{ 10 - abs($index - 2) }};">
                     @endforeach
                 </div>
             </div>

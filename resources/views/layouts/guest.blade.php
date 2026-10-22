@@ -26,7 +26,7 @@
             .reveal-delay-3 { transition-delay: 0.3s; }
         </style>
     </head>
-    <body class="min-h-screen bg-zinc-950 text-white antialiased">
+    <body class="min-h-screen overflow-x-clip bg-zinc-950 text-white antialiased">
         @include('partials.site-header')
 
         {{-- Main content --}}
