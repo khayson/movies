@@ -1,12 +1,11 @@
 @props(['title', 'items', 'type' => 'movie'])
 
-<section class="mt-12">
-    <div class="mb-6 flex items-center gap-3">
-        <h2 class="text-xl font-bold tracking-tight text-white">{{ $title }}</h2>
-        <span class="rounded-full bg-red-600/20 px-2.5 py-0.5 text-xs font-bold text-red-400">Coming Soon</span>
-        <div class="h-px flex-1 bg-gradient-to-r from-white/[0.06] to-transparent"></div>
-        <a href="{{ route('coming-soon') }}" class="text-sm font-medium text-zinc-500 transition hover:text-white" wire:navigate>
-            See All
+<section class="mt-10" aria-label="{{ $title }}">
+    <div class="mb-3 flex items-end justify-between gap-4">
+        <h2 class="section-title">{{ $title }}</h2>
+        <a href="{{ route('coming-soon') }}" class="group inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-zinc-400 transition hover:text-amber-300" wire:navigate>
+            Explore all
+            <svg xmlns="http://www.w3.org/2000/svg" class="size-3.5 transition group-hover:translate-x-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" /></svg>
         </a>
     </div>
 

@@ -4,11 +4,10 @@
 @endphp
 
 @if(count($items) > 0)
-    <section class="reveal mx-auto mt-12 max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="{{ $title }}">
-        <div class="mb-4 flex items-center gap-3">
-            <h2 class="text-lg font-bold text-white">{{ $title }}</h2>
-            <span class="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-black leading-none tracking-tight text-white">TOP<br>10</span>
-            <div class="h-px flex-1 bg-gradient-to-r from-white/[0.06] to-transparent"></div>
+    <section class="reveal mx-auto mt-10 max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="{{ $title }}">
+        <div class="mb-3 flex items-center gap-2.5">
+            <span class="flex size-8 flex-col items-center justify-center rounded bg-amber-400 text-[8px] font-black leading-none tracking-tight text-zinc-950" aria-hidden="true"><span>TOP</span><span class="text-sm">10</span></span>
+            <h2 class="section-title">{{ $title }}</h2>
         </div>
 
         <div class="group/row relative" x-data>

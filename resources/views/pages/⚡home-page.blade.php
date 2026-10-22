@@ -21,7 +21,6 @@ class extends Component
         $personalRows = auth()->check() ? $personalizedRows->forUser(auth()->user()) : [];
 
         $trending = $tmdb->trending('all', 'week')['results'] ?? [];
-        $trendingDay = $tmdb->trending('all', 'day')['results'] ?? [];
         $popularMovies = $tmdb->popular('movie')['results'] ?? [];
         $popularTv = $tmdb->popular('tv')['results'] ?? [];
         $topRated = $tmdb->topRated('movie')['results'] ?? [];
@@ -37,7 +36,6 @@ class extends Component
         $topTenShows = $topTen->forType('tv');
 
         $rtNetflixTop = $rottenTomatoes->toTmdbCards($rottenTomatoes->netflixTopTv(24), $tmdb, 12);
-        $rtComingSoon = $rottenTomatoes->toTmdbCards($rottenTomatoes->comingSoon(24), $tmdb, 12);
         $rtQueryMovies = $rottenTomatoes->toTmdbCards($rottenTomatoes->queryMovies(1, null, 24), $tmdb, 12);
         $tmdbAnimeTv = array_map(
             fn (array $item): array => array_merge($item, ['media_type' => 'tv']),
@@ -48,24 +46,6 @@ class extends Component
             $tmdb->anime('movie')['results'] ?? []
         );
         $topAnime = array_slice($tmdbAnimeTv, 0, 12);
-        $featuredAnimeItem = $topAnime[0] ?? null;
-        $featuredAnime = null;
-
-        if (is_array($featuredAnimeItem)) {
-            $aType = $featuredAnimeItem['media_type'] ?? 'tv';
-            $featuredAnime = [
-                'id' => $featuredAnimeItem['id'],
-                'title' => $featuredAnimeItem['title'] ?? $featuredAnimeItem['name'] ?? '',
-                'backdrop' => ! empty($featuredAnimeItem['backdrop_path']) ? $tmdb->backdropUrl($featuredAnimeItem['backdrop_path'], 'w1280') : '',
-                'rating' => number_format($featuredAnimeItem['vote_average'] ?? 0, 1),
-                'overview' => Str::limit($featuredAnimeItem['overview'] ?? '', 180),
-                'year' => Str::substr($featuredAnimeItem['release_date'] ?? $featuredAnimeItem['first_air_date'] ?? '', 0, 4),
-                'type' => $aType,
-                'watchUrl' => route('watch', ['type' => $aType, 'tmdbId' => $featuredAnimeItem['id']]),
-                'detailUrl' => route($aType === 'tv' ? 'tv.detail' : 'movies.detail', $featuredAnimeItem['id']),
-            ];
-        }
-
         $movieGenres = $tmdb->genres('movie')['genres'] ?? [];
         $tvGenres = $tmdb->genres('tv')['genres'] ?? [];
         $genreMap = [];
@@ -133,7 +113,6 @@ class extends Component
         return [
             'heroItems' => $heroItems,
             'trending' => $trending,
-            'trendingDay' => $trendingDay,
             'popularMovies' => $popularMovies,
             'popularTv' => $popularTv,
             'topRated' => $topRated,
@@ -147,15 +126,11 @@ class extends Component
             'personalRows' => $personalRows,
             'genreMap' => $genreMap,
             'movieGenres' => $movieGenres,
-            'tvGenres' => $tvGenres,
             'featured' => $featured,
             'rtNetflixTop' => $rtNetflixTop,
-            'rtComingSoon' => $rtComingSoon,
             'rtQueryMovies' => $rtQueryMovies,
             'topAnime' => $topAnime,
-            'tmdbAnimeTv' => $tmdbAnimeTv,
             'tmdbAnimeMovies' => $tmdbAnimeMovies,
-            'featuredAnime' => $featuredAnime,
         ];
     }
 };
@@ -273,20 +248,14 @@ class extends Component
             {{-- Hero Content --}}
             <div class="absolute bottom-0 left-0 right-0 px-4 pb-20 sm:px-8 md:px-16 md:pb-24">
                 <div class="mx-auto max-w-7xl">
-                    {{-- Badges --}}
-                    <div class="mb-3 flex items-center gap-2.5">
-                        <span class="flex items-center gap-1 rounded-md bg-red-600 px-2 py-0.5 text-[11px] font-bold text-white">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                            <span x-text="cur.rating"></span>
-                        </span>
-                        <span class="rounded-md bg-white/10 px-2 py-0.5 text-[11px] font-semibold text-zinc-300 backdrop-blur-sm" x-text="cur.year"></span>
-                        <span
-                            class="rounded-md px-2 py-0.5 text-[11px] font-semibold backdrop-blur-sm"
-                            :class="cur.type === 'tv' ? 'bg-purple-500/20 text-purple-300' : 'bg-blue-500/20 text-blue-300'"
-                            x-text="cur.type === 'tv' ? 'TV Show' : 'Movie'"
-                        ></span>
+                    {{-- Metadata line --}}
+                    <div class="mb-4 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-sm font-medium text-zinc-200 drop-shadow">
+                        <span class="text-xs font-bold uppercase tracking-[0.2em] text-amber-300" x-text="cur.type === 'tv' ? 'Series' : 'Film'"></span>
+                        <span class="text-zinc-500">•</span>
+                        <span class="font-semibold text-emerald-400" x-show="cur.rating > 0" x-text="Math.round(cur.rating * 10) + '% match'"></span>
+                        <span x-text="cur.year"></span>
                         <template x-for="g in cur.genres" :key="g">
-                            <span class="hidden rounded-md bg-white/10 px-2 py-0.5 text-[11px] font-medium text-zinc-400 backdrop-blur-sm sm:inline" x-text="g"></span>
+                            <span class="hidden text-zinc-300 before:mr-2.5 before:text-zinc-500 before:content-['•'] sm:inline" x-text="g"></span>
                         </template>
                     </div>
 
@@ -296,7 +265,7 @@ class extends Component
                             <img :src="cur.logo" :alt="cur.title" class="max-h-20 w-auto drop-shadow-[0_2px_10px_rgba(0,0,0,0.7)] sm:max-h-24 md:max-h-28">
                         </template>
                         <template x-if="!cur.logo">
-                            <h1 class="text-3xl font-black uppercase tracking-[0.15em] text-white drop-shadow-lg sm:text-4xl md:text-5xl lg:text-6xl" x-text="cur.title"></h1>
+                            <h1 class="text-4xl font-black leading-none tracking-tight text-white drop-shadow-lg sm:text-5xl lg:text-6xl" x-text="cur.title"></h1>
                         </template>
                     </div>
 
@@ -308,13 +277,13 @@ class extends Component
                         <a :href="cur.watchUrl"
                            class="inline-flex items-center gap-2 rounded-md bg-white px-5 py-2.5 text-sm font-bold text-black shadow-lg transition hover:bg-white/80 sm:px-7 sm:py-3">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                            <span class="hidden sm:inline">Play</span>
+                            <span>Play</span>
                         </a>
                         <a :href="cur.detailUrl"
                            @click="if (! $event.ctrlKey && ! $event.metaKey && ! $event.shiftKey && ! $event.altKey && $event.button === 0) { $event.preventDefault(); $event.stopImmediatePropagation(); $dispatch('open-title', { type: cur.type, id: cur.id }) }"
                            class="inline-flex items-center gap-2 rounded-md bg-zinc-500/40 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-zinc-500/30 sm:px-6 sm:py-3">
                             <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
-                            <span class="hidden sm:inline">More Info</span>
+                            <span>More Info</span>
                         </a>
                         <button
                             type="button"
@@ -338,7 +307,7 @@ class extends Component
                     <button
                         @click="goTo({{ $i }})"
                         class="relative overflow-hidden rounded-lg transition-all duration-300"
-                        :class="current === {{ $i }} ? 'ring-2 ring-red-500 w-16 h-10' : 'w-14 h-9 opacity-50 hover:opacity-80'"
+                        :class="current === {{ $i }} ? 'ring-2 ring-amber-400 w-16 h-10' : 'w-14 h-9 opacity-50 hover:opacity-80'"
                     >
                         @if($hero['backdrop'])
                             <img src="{{ app(Tmdb::class)->imageUrl(str_replace('https://image.tmdb.org/t/p/w1280', '', $hero['backdrop']), 'w185') }}" alt="" class="h-full w-full object-cover">
@@ -355,7 +324,7 @@ class extends Component
                     <button
                         @click="goTo({{ $i }})"
                         class="h-1 rounded-full transition-all duration-300"
-                        :class="current === {{ $i }} ? 'w-8 bg-red-500' : 'w-3 bg-white/30'"
+                        :class="current === {{ $i }} ? 'w-8 bg-amber-400' : 'w-3 bg-white/30'"
                     ></button>
                 @endforeach
             </div>
@@ -370,475 +339,103 @@ class extends Component
         </div>
     @endif
 
-    {{-- Main content --}}
-    <div class="relative z-10 -mt-10">
-        {{-- Category tabs --}}
-        <div
-            x-data="{ activeTab: 'trending' }"
-            class="reveal mx-auto max-w-7xl px-4 sm:px-6 lg:px-8"
-        >
-            <div class="scrollbar-hide mb-6 flex items-center gap-1 overflow-x-auto border-b border-white/[0.06] pb-px">
-                @php
-                    $tabs = [
-                        'trending' => 'Trending Now',
-                        'popular' => 'Popular',
-                        'anime' => 'Anime',
-                        'toprated' => 'Top Rated',
-                        'nowplaying' => 'Now Playing',
-                        'recent' => 'Recently Added',
-                    ];
-                @endphp
-                @foreach($tabs as $key => $label)
-                    <button
-                        @click="activeTab = '{{ $key }}'"
-                        class="relative whitespace-nowrap px-4 py-3 text-sm font-medium transition-colors"
-                        :class="activeTab === '{{ $key }}' ? 'text-white' : 'text-zinc-500 hover:text-zinc-300'"
-                    >
-                        {{ $label }}
-                        <span
-                            x-show="activeTab === '{{ $key }}'"
-                            x-transition:enter="transition ease-out duration-200"
-                            x-transition:enter-start="scale-x-0"
-                            x-transition:enter-end="scale-x-100"
-                            class="absolute bottom-0 left-2 right-2 h-0.5 rounded-full bg-red-500"
-                        ></span>
-                    </button>
-                @endforeach
-            </div>
-
-            {{-- Genre filter pills --}}
-            @php
-                $genreColors = [
-                    'Action' => 'bg-red-500/15 text-red-400 hover:bg-red-500/25',
-                    'Romance' => 'bg-pink-500/15 text-pink-400 hover:bg-pink-500/25',
-                    'Animation' => 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25',
-                    'Comedy' => 'bg-amber-500/15 text-amber-400 hover:bg-amber-500/25',
-                    'Crime' => 'bg-orange-500/15 text-orange-400 hover:bg-orange-500/25',
-                    'Documentary' => 'bg-cyan-500/15 text-cyan-400 hover:bg-cyan-500/25',
-                    'Drama' => 'bg-violet-500/15 text-violet-400 hover:bg-violet-500/25',
-                    'Horror' => 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25',
-                    'Thriller' => 'bg-yellow-500/15 text-yellow-400 hover:bg-yellow-500/25',
-                    'Sci-Fi' => 'bg-sky-500/15 text-sky-400 hover:bg-sky-500/25',
-                    'Science Fiction' => 'bg-sky-500/15 text-sky-400 hover:bg-sky-500/25',
-                    'Adventure' => 'bg-teal-500/15 text-teal-400 hover:bg-teal-500/25',
-                    'Fantasy' => 'bg-indigo-500/15 text-indigo-400 hover:bg-indigo-500/25',
-                    'Music' => 'bg-fuchsia-500/15 text-fuchsia-400 hover:bg-fuchsia-500/25',
-                    'Family' => 'bg-lime-500/15 text-lime-400 hover:bg-lime-500/25',
-                    'Mystery' => 'bg-purple-500/15 text-purple-400 hover:bg-purple-500/25',
-                    'War' => 'bg-stone-500/15 text-stone-400 hover:bg-stone-500/25',
-                    'History' => 'bg-amber-600/15 text-amber-500 hover:bg-amber-600/25',
-                    'Western' => 'bg-orange-600/15 text-orange-500 hover:bg-orange-600/25',
-                ];
-                $defaultColor = 'bg-zinc-500/15 text-zinc-400 hover:bg-zinc-500/25';
-                $displayGenres = array_slice($movieGenres, 0, 10);
-            @endphp
-            <div class="scrollbar-hide mb-8 flex gap-2 overflow-x-auto pb-2">
-                <a
-                    href="{{ route('anime.index') }}"
-                    wire:navigate
-                    class="shrink-0 rounded-full bg-fuchsia-500/15 px-4 py-1.5 text-xs font-semibold text-fuchsia-300 transition hover:bg-fuchsia-500/25"
-                >
-                    Anime
-                </a>
-                @foreach($displayGenres as $genre)
-                    <a
-                        href="{{ route('genres.browse', ['type' => 'movie', 'genreId' => $genre['id'], 'genreName' => Str::slug($genre['name'])]) }}"
-                        wire:navigate
-                        class="shrink-0 rounded-full px-4 py-1.5 text-xs font-semibold transition {{ $genreColors[$genre['name']] ?? $defaultColor }}"
-                    >
-                        {{ $genre['name'] }}
-                    </a>
-                @endforeach
-            </div>
-
-            {{-- Tab: Trending --}}
-            <div x-show="activeTab === 'trending'">
-                @include('partials.home-scroll-row', ['items' => $trending, 'genreMap' => $genreMap])
-            </div>
-            <div x-show="activeTab === 'popular'" x-cloak>
-                @include('partials.home-scroll-row', ['items' => array_merge($popularMovies, $popularTv), 'genreMap' => $genreMap])
-            </div>
-            <div x-show="activeTab === 'toprated'" x-cloak>
-                @include('partials.home-scroll-row', ['items' => array_merge($topRated, $topRatedTv), 'genreMap' => $genreMap])
-            </div>
-            <div x-show="activeTab === 'nowplaying'" x-cloak>
-                @include('partials.home-scroll-row', ['items' => $nowPlaying, 'genreMap' => $genreMap, 'type' => 'movie'])
-            </div>
-            <div x-show="activeTab === 'recent'" x-cloak>
-                @include('partials.home-scroll-row', ['items' => $airingToday, 'genreMap' => $genreMap, 'type' => 'tv'])
-            </div>
-            <div x-show="activeTab === 'anime'" x-cloak>
-                @include('partials.home-scroll-row', ['items' => $topAnime !== [] ? $topAnime : $tmdbAnimeTv, 'genreMap' => $genreMap, 'type' => 'tv'])
-            </div>
-        </div>
-
-        {{-- Continue Watching --}}
+    {{-- Rows --}}
+    <div class="relative z-10 mx-auto max-w-7xl px-4 pb-8 sm:px-6 lg:-mt-16 lg:px-8">
         @if($continueWatching->isNotEmpty())
-            <div class="reveal mx-auto mt-12 max-w-7xl px-4 sm:px-6 lg:px-8">
-                <div class="mb-4 flex items-center gap-3">
-                    <h2 class="text-lg font-bold text-white">Continue Watching</h2>
-                    <span class="size-2 rounded-full bg-red-500 shadow-sm shadow-red-500/50"></span>
-                    <div class="h-px flex-1 bg-gradient-to-r from-white/[0.06] to-transparent"></div>
-                </div>
-                <div class="scrollbar-hide -mx-4 flex gap-4 overflow-x-auto px-4 pb-2">
-                    @foreach($continueWatching as $item)
-                        <div class="w-36 shrink-0 sm:w-40">
-                            @include('partials.media-card', ['item' => $item, 'variant' => 'watch'])
-                        </div>
-                    @endforeach
-                </div>
-            </div>
+            @include('partials.media-row', ['title' => 'Continue Watching', 'items' => $continueWatching, 'variant' => 'watch', 'style' => 'scroll'])
         @endif
 
-        {{-- Personalized rows --}}
         @foreach($personalRows as $row)
-            <div class="reveal mx-auto max-w-7xl px-4 sm:px-6 lg:px-8" wire:key="personal-row-{{ $loop->index }}">
+            <div wire:key="personal-row-{{ $loop->index }}">
                 @include('partials.media-row', ['title' => $row['title'], 'items' => $row['items'], 'style' => 'scroll'])
             </div>
         @endforeach
 
-        {{-- Top 10 --}}
-        @include('partials.top-ten-row', ['title' => 'Top 10 Movies This Week', 'items' => $topTenMovies, 'type' => 'movie'])
-        @include('partials.top-ten-row', ['title' => 'Top 10 Shows This Week', 'items' => $topTenShows, 'type' => 'tv'])
+        @include('partials.media-row', ['title' => 'Trending Now', 'items' => $trending, 'style' => 'scroll', 'seeAllRoute' => route('trending')])
+    </div>
 
-        {{-- Anime hub --}}
-        @if(count($topAnime) > 0 || $featuredAnime)
-            <div class="reveal mx-auto mt-14 max-w-7xl px-4 sm:px-6 lg:px-8">
-                <div class="mb-6 flex items-end justify-between gap-4">
-                    <div>
-                        <p class="text-xs font-semibold uppercase tracking-[0.2em] text-fuchsia-400/80">Anime Hub</p>
-                        <h2 class="mt-1 text-2xl font-bold tracking-tight text-white">Watch ranked series and films</h2>
-                    </div>
-                    <a href="{{ route('anime.index') }}" wire:navigate class="text-sm font-medium text-fuchsia-300 transition hover:text-fuchsia-200">
-                        Browse all
-                    </a>
-                </div>
+    @include('partials.top-ten-row', ['title' => 'Top 10 Movies This Week', 'items' => $topTenMovies, 'type' => 'movie'])
 
-                @if($featuredAnime)
-                    <div class="relative mb-8 overflow-hidden rounded-2xl border border-fuchsia-500/15" style="height: clamp(240px, 34vh, 360px);">
-                        @if($featuredAnime['backdrop'])
-                            <img src="{{ $featuredAnime['backdrop'] }}" alt="{{ $featuredAnime['title'] }}" class="h-full w-full object-cover">
-                        @endif
-                        <div class="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/55 to-fuchsia-950/20"></div>
-                        <div class="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-zinc-950/30 to-transparent"></div>
-                        <div class="absolute bottom-0 left-0 right-0 p-6 sm:p-8">
-                            <span class="mb-2 inline-flex rounded-md bg-fuchsia-600/90 px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide text-white">Featured Anime</span>
-                            <h3 class="mb-2 text-2xl font-black text-white sm:text-3xl">{{ $featuredAnime['title'] }}</h3>
-                            <p class="mb-4 hidden max-w-xl text-sm text-zinc-300/80 sm:line-clamp-2">{{ $featuredAnime['overview'] }}</p>
-                            <div class="flex items-center gap-3">
-                                <a href="{{ $featuredAnime['watchUrl'] }}" class="inline-flex items-center gap-2 rounded-lg bg-fuchsia-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-fuchsia-600/25 transition hover:bg-fuchsia-500">
-                                    Watch
-                                </a>
-                                <a href="{{ $featuredAnime['detailUrl'] }}" wire:navigate class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-white/10">
-                                    More info
-                                </a>
-                            </div>
-                        </div>
-                    </div>
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        @include('partials.media-row', ['title' => 'New & Airing Anime', 'items' => $topAnime, 'type' => 'tv', 'style' => 'scroll', 'seeAllRoute' => route('anime.index')])
+        @include('partials.media-row', ['title' => 'Popular Movies', 'items' => $popularMovies, 'type' => 'movie', 'style' => 'scroll', 'seeAllRoute' => route('movies.index')])
+    </div>
+
+    @include('partials.top-ten-row', ['title' => 'Top 10 Shows This Week', 'items' => $topTenShows, 'type' => 'tv'])
+
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        @include('partials.media-row', ['title' => 'Popular Series', 'items' => $popularTv, 'type' => 'tv', 'style' => 'scroll', 'seeAllRoute' => route('tv.index')])
+        @include('partials.media-row', ['title' => 'In Cinemas Now', 'items' => $nowPlaying, 'type' => 'movie', 'style' => 'scroll', 'seeAllRoute' => route('new-releases')])
+
+        @if(count($upcoming) > 0)
+            @include('partials.upcoming-row', ['title' => 'Coming Soon', 'items' => $upcoming, 'type' => 'movie'])
+        @endif
+    </div>
+
+    {{-- Featured spotlight --}}
+    @if($featured)
+        <section class="reveal mx-auto mt-14 max-w-7xl px-4 sm:px-6 lg:px-8" aria-label="Spotlight">
+            <div class="relative isolate overflow-hidden rounded-2xl ring-1 ring-white/[0.06]" style="min-height: clamp(300px, 42vh, 460px);">
+                @if($featured['backdrop'])
+                    <img src="{{ $featured['backdrop'] }}" alt="" loading="lazy" class="absolute inset-0 -z-10 size-full object-cover">
                 @endif
+                <div class="absolute inset-0 -z-10 bg-gradient-to-r from-zinc-950 via-zinc-950/70 to-transparent"></div>
+                <div class="absolute inset-0 -z-10 bg-gradient-to-t from-zinc-950/80 to-transparent"></div>
 
-                @include('partials.media-row', [
-                    'title' => 'New & Airing Anime',
-                    'items' => $topAnime,
-                    'type' => 'tv',
-                    'style' => 'scroll',
-                    'seeAllRoute' => route('anime.index'),
-                ])
-            </div>
-        @endif
-
-        {{-- Tabbed content: MOVIES / SERIES / ANIME --}}
-        <div
-            x-data="{
-                contentTab: 'movies',
-                sortBy: 'popular',
-                viewMode: 'grid'
-            }"
-            class="reveal mx-auto mt-14 max-w-7xl px-4 sm:px-6 lg:px-8"
-        >
-            {{-- Tabs header --}}
-            <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
-                <div class="flex items-center gap-1">
-                    <button @click="contentTab = 'movies'" class="px-4 py-2 text-sm font-bold uppercase tracking-wider transition" :class="contentTab === 'movies' ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'">
-                        Movies
-                    </button>
-                    <span class="text-zinc-700">|</span>
-                    <button @click="contentTab = 'series'" class="px-4 py-2 text-sm font-bold uppercase tracking-wider transition" :class="contentTab === 'series' ? 'text-white' : 'text-zinc-600 hover:text-zinc-400'">
-                        Series
-                    </button>
-                    <span class="text-zinc-700">|</span>
-                    <button @click="contentTab = 'anime'" class="px-4 py-2 text-sm font-bold uppercase tracking-wider transition" :class="contentTab === 'anime' ? 'text-fuchsia-300' : 'text-zinc-600 hover:text-zinc-400'">
-                        Anime
-                    </button>
-                </div>
-
-                {{-- Sort + view controls --}}
-                <div class="flex items-center gap-3">
-                    <div class="flex items-center gap-1 rounded-lg border border-white/[0.06] bg-white/[0.02] p-0.5">
-                        <button @click="sortBy = 'popular'" class="rounded-md px-3 py-1 text-[11px] font-semibold transition" :class="sortBy === 'popular' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'">Popular</button>
-                        <button @click="sortBy = 'new'" class="rounded-md px-3 py-1 text-[11px] font-semibold transition" :class="sortBy === 'new' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'">New</button>
-                        <button @click="sortBy = 'az'" class="rounded-md px-3 py-1 text-[11px] font-semibold transition" :class="sortBy === 'az' ? 'bg-white/10 text-white' : 'text-zinc-500 hover:text-zinc-300'">A-Z</button>
-                    </div>
-
-                    <div class="flex items-center gap-1">
-                        <button @click="viewMode = 'grid'" class="rounded-md p-1.5 transition" :class="viewMode === 'grid' ? 'bg-white/10 text-white' : 'text-zinc-600 hover:text-zinc-400'">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" /></svg>
-                        </button>
-                        <button @click="viewMode = 'list'" class="rounded-md p-1.5 transition" :class="viewMode === 'list' ? 'bg-white/10 text-white' : 'text-zinc-600 hover:text-zinc-400'">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 12h16.5m-16.5 3.75h16.5M3.75 19.5h16.5M5.625 4.5h12.75a1.875 1.875 0 0 1 0 3.75H5.625a1.875 1.875 0 0 1 0-3.75Z" /></svg>
-                        </button>
-                    </div>
-                </div>
-            </div>
-
-            {{-- Genre pills for content section --}}
-            <div class="scrollbar-hide mb-6 flex gap-2 overflow-x-auto pb-2">
-                @foreach($displayGenres as $genre)
-                    <a
-                        href="{{ route('genres.browse', ['type' => 'movie', 'genreId' => $genre['id'], 'genreName' => Str::slug($genre['name'])]) }}"
-                        wire:navigate
-                        class="shrink-0 rounded-full px-3.5 py-1.5 text-[11px] font-semibold transition {{ $genreColors[$genre['name']] ?? $defaultColor }}"
-                    >
-                        {{ $genre['name'] }}
-                    </a>
-                @endforeach
-            </div>
-
-            {{-- Movies grid --}}
-            <div x-show="contentTab === 'movies'">
-                <div
-                    x-data="{
-                        movies: {{ Js::from(array_map(fn ($m) => array_merge($m, ['media_type' => $m['media_type'] ?? 'movie']), array_slice($popularMovies, 0, 18))) }},
-                        get sorted() {
-                            let items = [...this.movies];
-                            if (this.sortBy === 'az') items.sort((a, b) => (a.title || a.name || '').localeCompare(b.title || b.name || ''));
-                            if (this.sortBy === 'new') items.sort((a, b) => (b.release_date || '').localeCompare(a.release_date || ''));
-                            return items;
-                        }
-                    }"
-                >
-                    {{-- Grid view --}}
-                    <div x-show="viewMode === 'grid'" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                        @foreach(array_slice($popularMovies, 0, 18) as $movie)
-                            @include('partials.media-card', ['item' => $movie, 'type' => 'movie', 'showOverview' => false])
+                <div class="flex h-full min-h-[inherit] max-w-xl flex-col justify-end p-6 sm:p-10">
+                    <p class="eyebrow">Spotlight</p>
+                    <h2 class="mt-2 text-3xl font-black tracking-tight text-white sm:text-4xl">{{ $featured['title'] }}</h2>
+                    <div class="mt-2 flex flex-wrap items-center gap-x-2.5 text-sm text-zinc-300">
+                        @if((float) $featured['rating'] > 0)
+                            <span class="font-semibold text-emerald-400">{{ round((float) $featured['rating'] * 10) }}% match</span>
+                        @endif
+                        <span>{{ $featured['year'] }}</span>
+                        @foreach($featured['genres'] as $genre)
+                            <span class="hidden before:mr-2.5 before:text-zinc-500 before:content-['•'] sm:inline">{{ $genre }}</span>
                         @endforeach
                     </div>
-
-                    {{-- List view --}}
-                    <div x-show="viewMode === 'list'" x-cloak class="space-y-2">
-                        @foreach(array_slice($popularMovies, 0, 12) as $i => $movie)
-                            @php
-                                $mTitle = $movie['title'] ?? $movie['name'] ?? 'Untitled';
-                                $mYear = Str::substr($movie['release_date'] ?? '', 0, 4);
-                                $mRating = number_format($movie['vote_average'] ?? 0, 1);
-                                $mGenres = collect($movie['genre_ids'] ?? [])->map(fn ($id) => $genreMap[$id] ?? null)->filter()->take(3)->implode(', ');
-                            @endphp
-                            <a href="{{ route('movies.detail', $movie['id']) }}" wire:navigate
-                               class="flex items-center gap-4 rounded-xl border border-white/[0.04] bg-white/[0.02] p-3 transition hover:bg-white/[0.05]">
-                                <span class="w-8 text-center text-sm font-bold tabular-nums text-zinc-600">{{ $i + 1 }}</span>
-                                <div class="size-14 shrink-0 overflow-hidden rounded-lg bg-zinc-800">
-                                    @if(!empty($movie['poster_path']))
-                                        <img src="{{ app(Tmdb::class)->imageUrl($movie['poster_path'], 'w92') }}" alt="{{ $mTitle }}" class="h-full w-full object-cover">
-                                    @endif
-                                </div>
-                                <div class="min-w-0 flex-1">
-                                    <h4 class="truncate text-sm font-medium text-white">{{ $mTitle }}</h4>
-                                    <p class="mt-0.5 text-xs text-zinc-500">{{ $mGenres }}</p>
-                                </div>
-                                <div class="hidden items-center gap-4 text-xs text-zinc-500 sm:flex">
-                                    <span>{{ $mYear }}</span>
-                                    <span class="flex items-center gap-1 text-amber-400">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                                        {{ $mRating }}
-                                    </span>
-                                </div>
-                            </a>
-                        @endforeach
+                    <p class="mt-3 hidden text-sm leading-relaxed text-zinc-300 sm:line-clamp-3">{{ $featured['overview'] }}</p>
+                    <div class="mt-5 flex flex-wrap gap-3">
+                        <a href="{{ $featured['watchUrl'] }}" class="btn-play">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="size-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                            Play
+                        </a>
+                        <a href="{{ $featured['detailUrl'] }}"
+                           @click="if (! $event.ctrlKey && ! $event.metaKey && ! $event.shiftKey && ! $event.altKey && $event.button === 0) { $event.preventDefault(); $dispatch('open-title', { type: '{{ $featured['type'] }}', id: {{ (int) $featured['id'] }} }) }"
+                           class="btn-secondary">
+                            More Info
+                        </a>
                     </div>
                 </div>
-
-                <div class="mt-6 text-center">
-                    <a href="{{ route('movies.index') }}" wire:navigate class="inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-6 py-2.5 text-sm font-medium text-zinc-400 transition hover:bg-white/[0.06] hover:text-white">
-                        View All Movies
-                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-                    </a>
-                </div>
             </div>
+        </section>
+    @endif
 
-            {{-- Series grid --}}
-            <div x-show="contentTab === 'series'" x-cloak>
-                <div x-show="viewMode === 'grid'" class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                    @foreach(array_slice($popularTv, 0, 18) as $show)
-                        @include('partials.media-card', ['item' => $show, 'type' => 'tv', 'showOverview' => false])
-                    @endforeach
+    <div class="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+        @include('partials.media-row', ['title' => 'Critically Acclaimed Movies', 'items' => $topRated, 'type' => 'movie', 'style' => 'scroll', 'seeAllRoute' => route('movies.index', ['category' => 'top_rated'])])
+        @include('partials.media-row', ['title' => 'Critically Acclaimed Series', 'items' => $topRatedTv, 'type' => 'tv', 'style' => 'scroll'])
+        @include('partials.media-row', ['title' => 'Anime Movies', 'items' => $tmdbAnimeMovies, 'type' => 'movie', 'style' => 'scroll', 'seeAllRoute' => route('anime.index')])
+        @include('partials.media-row', ['title' => 'New Episodes Today', 'items' => $airingToday, 'type' => 'tv', 'style' => 'scroll', 'seeAllRoute' => route('new-releases', ['tab' => 'tv'])])
+        @include('partials.media-row', ['title' => 'Netflix Top on Rotten Tomatoes', 'items' => $rtNetflixTop, 'type' => 'tv', 'style' => 'scroll'])
+        @include('partials.media-row', ['title' => 'Fresh on Rotten Tomatoes', 'items' => $rtQueryMovies, 'type' => 'movie', 'style' => 'scroll'])
+
+        {{-- Browse by genre --}}
+        @if(count($movieGenres) > 0)
+            <section class="reveal mt-14" aria-label="Browse by genre">
+                <div class="mb-3 flex items-end justify-between gap-4">
+                    <h2 class="section-title">Browse by genre</h2>
+                    <a href="{{ route('genres.index') }}" class="text-xs font-semibold text-zinc-400 transition hover:text-amber-300" wire:navigate>All genres</a>
                 </div>
-
-                <div x-show="viewMode === 'list'" x-cloak class="space-y-2">
-                    @foreach(array_slice($popularTv, 0, 12) as $i => $show)
-                        @php
-                            $sTitle = $show['name'] ?? $show['title'] ?? 'Untitled';
-                            $sYear = Str::substr($show['first_air_date'] ?? '', 0, 4);
-                            $sRating = number_format($show['vote_average'] ?? 0, 1);
-                            $sGenres = collect($show['genre_ids'] ?? [])->map(fn ($id) => $genreMap[$id] ?? null)->filter()->take(3)->implode(', ');
-                        @endphp
-                        <a href="{{ route('tv.detail', $show['id']) }}" wire:navigate
-                           class="flex items-center gap-4 rounded-xl border border-white/[0.04] bg-white/[0.02] p-3 transition hover:bg-white/[0.05]">
-                            <span class="w-8 text-center text-sm font-bold tabular-nums text-zinc-600">{{ $i + 1 }}</span>
-                            <div class="size-14 shrink-0 overflow-hidden rounded-lg bg-zinc-800">
-                                @if(!empty($show['poster_path']))
-                                    <img src="{{ app(Tmdb::class)->imageUrl($show['poster_path'], 'w92') }}" alt="{{ $sTitle }}" class="h-full w-full object-cover">
-                                @endif
-                            </div>
-                            <div class="min-w-0 flex-1">
-                                <h4 class="truncate text-sm font-medium text-white">{{ $sTitle }}</h4>
-                                <p class="mt-0.5 text-xs text-zinc-500">{{ $sGenres }}</p>
-                            </div>
-                            <div class="hidden items-center gap-4 text-xs text-zinc-500 sm:flex">
-                                <span>{{ $sYear }}</span>
-                                <span class="flex items-center gap-1 text-amber-400">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                                    {{ $sRating }}
-                                </span>
-                            </div>
+                <div class="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+                    @foreach(array_slice($movieGenres, 0, 12) as $genre)
+                        <a href="{{ route('genres.browse', ['type' => 'movie', 'genreId' => $genre['id'], 'genreName' => Str::slug($genre['name'])]) }}" wire:navigate
+                           class="group relative overflow-hidden rounded-xl border border-white/[0.06] bg-gradient-to-br from-zinc-800/80 to-zinc-900 px-4 py-5 transition hover:-translate-y-0.5 hover:border-amber-400/40">
+                            <span class="relative font-bold text-white">{{ $genre['name'] }}</span>
+                            <span class="absolute -bottom-6 -right-4 text-7xl font-black text-white/[0.04] transition group-hover:text-amber-400/10" aria-hidden="true">{{ mb_substr($genre['name'], 0, 1) }}</span>
                         </a>
                     @endforeach
                 </div>
-
-                <div class="mt-6 text-center">
-                    <a href="{{ route('tv.index') }}" wire:navigate class="inline-flex items-center gap-2 rounded-lg border border-white/[0.08] bg-white/[0.03] px-6 py-2.5 text-sm font-medium text-zinc-400 transition hover:bg-white/[0.06] hover:text-white">
-                        View All Series
-                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-                    </a>
-                </div>
-            </div>
-
-            {{-- Anime grid --}}
-            <div x-show="contentTab === 'anime'" x-cloak>
-                <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-                    @foreach(array_slice($topAnime !== [] ? $topAnime : array_merge($tmdbAnimeTv, $tmdbAnimeMovies), 0, 18) as $animeItem)
-                        @include('partials.media-card', ['item' => $animeItem, 'type' => $animeItem['media_type'] ?? 'tv', 'showOverview' => false])
-                    @endforeach
-                </div>
-                <div class="mt-6 text-center">
-                    <a href="{{ route('anime.index') }}" wire:navigate class="inline-flex items-center gap-2 rounded-lg border border-fuchsia-500/20 bg-fuchsia-500/10 px-6 py-2.5 text-sm font-medium text-fuchsia-300 transition hover:bg-fuchsia-500/20 hover:text-white">
-                        View All Anime
-                        <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" /></svg>
-                    </a>
-                </div>
-            </div>
-        </div>
-
-        {{-- Upcoming Movies --}}
-        <div class="reveal mx-auto mt-14 max-w-7xl px-4 sm:px-6 lg:px-8">
-            @if(count($upcoming) > 0)
-                @include('partials.upcoming-row', ['title' => 'Upcoming Movies', 'items' => $upcoming, 'type' => 'movie'])
-            @endif
-        </div>
-
-        {{-- Featured banner --}}
-        @if($featured)
-            <div class="reveal mx-auto mt-16 max-w-7xl px-4 sm:px-6 lg:px-8">
-                <div class="relative overflow-hidden rounded-2xl border border-white/[0.06]" style="height: clamp(280px, 40vh, 420px);">
-                    @if($featured['backdrop'])
-                        <img src="{{ $featured['backdrop'] }}" alt="{{ $featured['title'] }}" class="h-full w-full object-cover">
-                    @endif
-                    <div class="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/50 to-transparent"></div>
-                    <div class="absolute inset-0 bg-gradient-to-r from-zinc-900/90 via-zinc-900/40 to-transparent"></div>
-
-                    <div class="absolute bottom-0 left-0 right-0 p-6 sm:p-10">
-                        <div class="mb-2 flex items-center gap-2">
-                            <span class="flex items-center gap-1 rounded-md bg-red-600 px-2 py-0.5 text-[11px] font-bold text-white">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="size-3" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
-                                {{ $featured['rating'] }}
-                            </span>
-                            <span class="text-xs text-zinc-400">{{ $featured['year'] }}</span>
-                            @foreach($featured['genres'] as $g)
-                                <span class="hidden text-xs text-zinc-500 sm:inline">{{ $g }}</span>
-                            @endforeach
-                        </div>
-                        <h2 class="mb-2 text-2xl font-black uppercase tracking-[0.1em] text-white sm:text-3xl md:text-4xl">{{ $featured['title'] }}</h2>
-                        <p class="mb-4 hidden max-w-lg text-sm leading-relaxed text-zinc-300/80 sm:line-clamp-2">{{ $featured['overview'] }}</p>
-                        <div class="flex items-center gap-3">
-                            <a href="{{ $featured['watchUrl'] }}" class="inline-flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-bold text-white shadow-lg shadow-red-600/25 transition hover:bg-red-500">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
-                                WATCH
-                            </a>
-                            <a href="{{ $featured['detailUrl'] }}" wire:navigate class="inline-flex items-center gap-2 rounded-lg border border-white/15 bg-white/5 px-5 py-2.5 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/10">
-                                <svg xmlns="http://www.w3.org/2000/svg" class="size-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="m11.25 11.25.041-.02a.75.75 0 0 1 1.063.852l-.708 2.836a.75.75 0 0 0 1.063.853l.041-.021M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9-3.75h.008v.008H12V8.25Z" /></svg>
-                                MORE INFO
-                            </a>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            </section>
         @endif
-
-        {{-- Top Rated row --}}
-        <div class="reveal mx-auto mt-14 max-w-7xl px-4 pb-16 sm:px-6 lg:px-8">
-            @include('partials.media-row', [
-                'title' => 'Top Rated Movies',
-                'items' => $topRated,
-                'type' => 'movie',
-                'style' => 'scroll',
-            ])
-
-            @include('partials.media-row', [
-                'title' => 'Airing Today',
-                'items' => $airingToday,
-                'type' => 'tv',
-                'style' => 'scroll',
-                'seeAllRoute' => route('new-releases', ['tab' => 'tv']),
-            ])
-
-            @if(count($rtNetflixTop) > 0)
-                @include('partials.media-row', [
-                    'title' => 'Netflix Top on Rotten Tomatoes',
-                    'items' => $rtNetflixTop,
-                    'type' => 'tv',
-                    'style' => 'scroll',
-                ])
-            @endif
-
-            @if(count($rtComingSoon) > 0)
-                @include('partials.media-row', [
-                    'title' => 'Coming Soon · Rotten Tomatoes',
-                    'items' => $rtComingSoon,
-                    'type' => 'movie',
-                    'style' => 'scroll',
-                ])
-            @endif
-
-            @if(count($rtQueryMovies) > 0)
-                @include('partials.media-row', [
-                    'title' => 'Fresh on Rotten Tomatoes',
-                    'items' => $rtQueryMovies,
-                    'type' => 'movie',
-                    'style' => 'scroll',
-                ])
-            @endif
-        </div>
-
-        {{-- CTA Section --}}
-        @guest
-            <div class="reveal relative overflow-hidden border-y border-white/[0.06]">
-                <div class="absolute inset-0 bg-gradient-to-r from-red-950/20 via-transparent to-amber-950/20"></div>
-                <div class="relative mx-auto max-w-3xl px-4 py-20 text-center sm:px-6 lg:px-8">
-                    <h2 class="mb-3 text-3xl font-black tracking-tight md:text-4xl">
-                        Start Your <span class="bg-gradient-to-r from-red-400 to-amber-400 bg-clip-text text-transparent">Streaming Journey</span>
-                    </h2>
-                    <p class="mx-auto mb-8 max-w-lg text-sm leading-relaxed text-zinc-400">
-                        Track what you watch, write reviews, earn badges, challenge friends with trivia, and discover your next favorite title — all for free.
-                    </p>
-                    <div class="flex items-center justify-center gap-4">
-                        <a href="{{ route('register') }}" wire:navigate class="rounded-lg bg-gradient-to-r from-red-600 to-amber-600 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-red-600/20 transition hover:from-red-500 hover:to-amber-500 hover:shadow-red-500/30">
-                            Get Started Free
-                        </a>
-                        <a href="{{ route('trending') }}" wire:navigate class="rounded-lg border border-white/[0.1] bg-white/[0.03] px-6 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/[0.06] hover:text-white">
-                            Explore Trending
-                        </a>
-                    </div>
-                </div>
-            </div>
-        @endguest
     </div>
 </div>
